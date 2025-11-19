@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 
 export type FileType = 'quest' | 'conversation' | 'script' | 'config';
@@ -15,26 +16,31 @@ export interface VirtualFolder {
   id: string;
   name: string;
   path: string; // parent path e.g. "core" or ""
-  type?: FileType;
+  type: FileType;
 }
 
 interface ProjectState {
-  files: Record<string, VirtualFile>;
-  folders: Record<string, VirtualFolder>;
+  questFiles: Record<string, VirtualFile>;
+  questFolders: Record<string, VirtualFolder>;
+  conversationFiles: Record<string, VirtualFile>;
+  conversationFolders: Record<string, VirtualFolder>;
+
   activeFileId: string | null;
+  activeFileType: FileType | null;
   
   // Actions
   createFile: (name: string, type: FileType, path: string, initialContent?: string) => void;
-  deleteFile: (id: string) => void;
-  updateFileContent: (id: string, content: string) => void;
-  renameFile: (id: string, newName: string) => void;
-  moveFile: (id: string, newPath: string) => void;
+  deleteFile: (id: string, type: FileType) => void;
+  updateFileContent: (id: string, type: FileType, content: string) => void;
+  renameFile: (id: string, type: FileType, newName: string) => void;
+  moveFile: (id: string, type: FileType, newPath: string) => { success: boolean; message?: string };
   
   createFolder: (name: string, path: string, type: FileType) => void;
-  deleteFolder: (id: string) => void;
-  renameFolder: (id: string, newName: string) => void;
+  deleteFolder: (id: string, type: FileType) => void;
+  renameFolder: (id: string, type: FileType, newName: string) => void;
+  moveFolder: (id: string, type: FileType, newPath: string) => { success: boolean; message?: string };
   
-  setActiveFile: (id: string | null) => void;
+  setActiveFile: (id: string | null, type?: FileType) => void;
   importFiles: (files: VirtualFile[]) => void;
 }
 
@@ -61,111 +67,340 @@ conversation_0:
       then: "goto conversation_1"
 `;
 
-export const useProjectStore = create<ProjectState>((set) => ({
-  files: {
-    '1': { id: '1', name: 'example_quest.yml', type: 'quest', path: '', content: DEFAULT_QUEST },
-    '2': { id: '2', name: 'example_conversation.yml', type: 'conversation', path: '', content: DEFAULT_CONVERSATION },
-  },
-  folders: {},
-  activeFileId: '1',
-
-  createFile: (name, type, path, initialContent = '') => set((state) => {
-    const id = uuidv4();
-    return {
-      files: {
-        ...state.files,
-        [id]: { id, name, type, path, content: initialContent }
+export const useProjectStore = create<ProjectState>()(
+  persist(
+    (set, get) => ({
+      questFiles: {
+        '1': { id: '1', name: 'example_quest.yml', type: 'quest', path: '', content: DEFAULT_QUEST },
       },
-      activeFileId: id
-    };
-  }),
+      questFolders: {},
+      conversationFiles: {
+        '2': { id: '2', name: 'example_conversation.yml', type: 'conversation', path: '', content: DEFAULT_CONVERSATION },
+      },
+      conversationFolders: {},
+      activeFileId: '1',
+      activeFileType: 'quest',
 
-  deleteFile: (id) => set((state) => {
-    const newFiles = { ...state.files };
-    delete newFiles[id];
-    return { 
-      files: newFiles,
-      activeFileId: state.activeFileId === id ? null : state.activeFileId
-    };
-  }),
-
-  updateFileContent: (id, content) => set((state) => ({
-    files: {
-      ...state.files,
-      [id]: { ...state.files[id], content }
-    }
-  })),
-
-  renameFile: (id, newName) => set((state) => ({
-    files: {
-      ...state.files,
-      [id]: { ...state.files[id], name: newName }
-    }
-  })),
-
-  moveFile: (id, newPath) => set((state) => ({
-    files: {
-      ...state.files,
-      [id]: { ...state.files[id], path: newPath }
-    }
-  })),
-
-  createFolder: (name, path, type) => set((state) => {
-    const id = uuidv4();
-    return {
-      folders: {
-        ...state.folders,
-        [id]: { id, name, path, type }
-      }
-    };
-  }),
-
-  deleteFolder: (id) => set((state) => {
-    const newFolders = { ...state.folders };
-    delete newFolders[id];
-    return { folders: newFolders };
-  }),
-
-  renameFolder: (id, newName) => set((state) => {
-    const folder = state.folders[id];
-    if (!folder) return state;
-    
-    const oldPath = folder.path ? `${folder.path}/${folder.name}` : folder.name;
-    const newPath = folder.path ? `${folder.path}/${newName}` : newName;
-    
-    // Update the folder itself
-    const newFolders = { ...state.folders, [id]: { ...folder, name: newName } };
-    
-    // Update all files that start with oldPath
-    const newFiles = { ...state.files };
-    Object.values(newFiles).forEach(file => {
-        if (file.path === oldPath) {
-            newFiles[file.id] = { ...file, path: newPath };
-        } else if (file.path.startsWith(oldPath + '/')) {
-            newFiles[file.id] = { ...file, path: file.path.replace(oldPath, newPath) };
+      createFile: (name, type, path, initialContent = '') => set((state) => {
+        const id = uuidv4();
+        const newFile = { id, name, type, path, content: initialContent };
+        
+        if (type === 'quest') {
+          return {
+            questFiles: { ...state.questFiles, [id]: newFile },
+            activeFileId: id,
+            activeFileType: type
+          };
+        } else {
+          return {
+            conversationFiles: { ...state.conversationFiles, [id]: newFile },
+            activeFileId: id,
+            activeFileType: type
+          };
         }
-    });
-    
-    // Update all folders that start with oldPath
-    Object.values(newFolders).forEach(f => {
-        if (f.id === id) return; // Skip self
-        if (f.path === oldPath) {
-            newFolders[f.id] = { ...f, path: newPath };
-        } else if (f.path.startsWith(oldPath + '/')) {
-            newFolders[f.id] = { ...f, path: f.path.replace(oldPath, newPath) };
+      }),
+
+      deleteFile: (id, type) => set((state) => {
+        if (type === 'quest') {
+          const newFiles = { ...state.questFiles };
+          delete newFiles[id];
+          return { 
+            questFiles: newFiles,
+            activeFileId: state.activeFileId === id ? null : state.activeFileId,
+            activeFileType: state.activeFileId === id ? null : state.activeFileType
+          };
+        } else {
+          const newFiles = { ...state.conversationFiles };
+          delete newFiles[id];
+          return { 
+            conversationFiles: newFiles,
+            activeFileId: state.activeFileId === id ? null : state.activeFileId,
+            activeFileType: state.activeFileId === id ? null : state.activeFileType
+          };
         }
-    });
-    
-    return { files: newFiles, folders: newFolders };
-  }),
+      }),
 
-  setActiveFile: (id) => set({ activeFileId: id }),
+      updateFileContent: (id, type, content) => set((state) => {
+        if (type === 'quest') {
+          return {
+            questFiles: {
+              ...state.questFiles,
+              [id]: { ...state.questFiles[id], content }
+            }
+          };
+        } else {
+          return {
+            conversationFiles: {
+              ...state.conversationFiles,
+              [id]: { ...state.conversationFiles[id], content }
+            }
+          };
+        }
+      }),
 
-  importFiles: (newFiles) => set(() => {
-    const fileMap = newFiles.reduce((acc, f) => ({ ...acc, [f.id]: f }), {});
-    return {
-      files: fileMap,
-      activeFileId: newFiles.length > 0 ? newFiles[0].id : null
-    };
-  })
-}));
+      renameFile: (id, type, newName) => set((state) => {
+        if (type === 'quest') {
+          return {
+            questFiles: {
+              ...state.questFiles,
+              [id]: { ...state.questFiles[id], name: newName }
+            }
+          };
+        } else {
+          return {
+            conversationFiles: {
+              ...state.conversationFiles,
+              [id]: { ...state.conversationFiles[id], name: newName }
+            }
+          };
+        }
+      }),
+
+      moveFile: (id, type, newPath) => {
+        const state = get();
+        const files = type === 'quest' ? state.questFiles : state.conversationFiles;
+        const file = files[id];
+        
+        if (!file) return { success: false, message: 'File not found' };
+
+        // Normalize paths (remove trailing slashes)
+        const normalizedNewPath = newPath.replace(/\/+$/, '');
+        const normalizedCurrentPath = file.path.replace(/\/+$/, '');
+
+        if (normalizedCurrentPath === normalizedNewPath) {
+            return { success: false, message: `File is already in '${normalizedNewPath || 'root'}'` };
+        }
+
+        set((state) => {
+          if (type === 'quest') {
+            return {
+                questFiles: {
+                    ...state.questFiles,
+                    [id]: { ...state.questFiles[id], path: normalizedNewPath }
+                }
+            };
+          } else {
+            return {
+                conversationFiles: {
+                    ...state.conversationFiles,
+                    [id]: { ...state.conversationFiles[id], path: normalizedNewPath }
+                }
+            };
+          }
+        });
+        return { success: true };
+      },
+
+      createFolder: (name, path, type) => set((state) => {
+        const id = uuidv4();
+        const newFolder = { id, name, path, type };
+        
+        if (type === 'quest') {
+          return {
+            questFolders: { ...state.questFolders, [id]: newFolder }
+          };
+        } else {
+          return {
+            conversationFolders: { ...state.conversationFolders, [id]: newFolder }
+          };
+        }
+      }),
+
+      deleteFolder: (id, type) => set((state) => {
+        if (type === 'quest') {
+          const newFolders = { ...state.questFolders };
+          delete newFolders[id];
+          return { questFolders: newFolders };
+        } else {
+          const newFolders = { ...state.conversationFolders };
+          delete newFolders[id];
+          return { conversationFolders: newFolders };
+        }
+      }),
+
+      renameFolder: (id, type, newName) => set((state) => {
+        const folders = type === 'quest' ? state.questFolders : state.conversationFolders;
+        const folder = folders[id];
+        if (!folder) return state;
+        
+        const oldPath = folder.path ? `${folder.path}/${folder.name}` : folder.name;
+        const newPath = folder.path ? `${folder.path}/${newName}` : newName;
+        
+        if (type === 'quest') {
+            const newFolders = { ...state.questFolders, [id]: { ...folder, name: newName } };
+            const newFiles = { ...state.questFiles };
+            
+            // Update files
+            Object.values(newFiles).forEach(file => {
+                if (file.path === oldPath) {
+                    newFiles[file.id] = { ...file, path: newPath };
+                } else if (file.path.startsWith(oldPath + '/')) {
+                    newFiles[file.id] = { ...file, path: file.path.replace(oldPath, newPath) };
+                }
+            });
+            
+            // Update folders
+            Object.values(newFolders).forEach(f => {
+                if (f.id === id) return;
+                if (f.path === oldPath) {
+                    newFolders[f.id] = { ...f, path: newPath };
+                } else if (f.path.startsWith(oldPath + '/')) {
+                    newFolders[f.id] = { ...f, path: f.path.replace(oldPath, newPath) };
+                }
+            });
+            return { questFiles: newFiles, questFolders: newFolders };
+        } else {
+            const newFolders = { ...state.conversationFolders, [id]: { ...folder, name: newName } };
+            const newFiles = { ...state.conversationFiles };
+            
+            // Update files
+            Object.values(newFiles).forEach(file => {
+                if (file.path === oldPath) {
+                    newFiles[file.id] = { ...file, path: newPath };
+                } else if (file.path.startsWith(oldPath + '/')) {
+                    newFiles[file.id] = { ...file, path: file.path.replace(oldPath, newPath) };
+                }
+            });
+            
+            // Update folders
+            Object.values(newFolders).forEach(f => {
+                if (f.id === id) return;
+                if (f.path === oldPath) {
+                    newFolders[f.id] = { ...f, path: newPath };
+                } else if (f.path.startsWith(oldPath + '/')) {
+                    newFolders[f.id] = { ...f, path: f.path.replace(oldPath, newPath) };
+                }
+            });
+            return { conversationFiles: newFiles, conversationFolders: newFolders };
+        }
+      }),
+
+      moveFolder: (id, type, newPath) => {
+        const state = get();
+        const folders = type === 'quest' ? state.questFolders : state.conversationFolders;
+        
+        // 1. Determine old path and folder name
+        let oldPath = '';
+        let folderName = '';
+        const folder = folders[id];
+
+        if (folder) {
+            // Explicit folder
+            oldPath = folder.path ? `${folder.path}/${folder.name}` : folder.name;
+            folderName = folder.name;
+        } else if (id.startsWith('folder-')) {
+            // Implicit folder
+            oldPath = id.replace('folder-', '');
+            const parts = oldPath.split('/');
+            folderName = parts[parts.length - 1];
+        } else {
+            return { success: false, message: 'Folder not found' };
+        }
+        
+        // 2. Check if moving to same location
+        const currentParentPath = oldPath.includes('/') ? oldPath.substring(0, oldPath.lastIndexOf('/')) : '';
+        
+        // Normalize paths
+        const normalizedNewPath = newPath.replace(/\/+$/, '');
+        const normalizedCurrentParentPath = currentParentPath.replace(/\/+$/, '');
+
+        if (normalizedNewPath === normalizedCurrentParentPath) {
+            return { success: false, message: `Folder '${folderName}' is already in '${normalizedNewPath || 'root'}'` };
+        }
+
+        // 3. Check for circular dependency
+        if (normalizedNewPath === oldPath || normalizedNewPath.startsWith(oldPath + '/')) {
+            return { success: false, message: `Cannot move folder '${folderName}' into itself or its children` };
+        }
+
+        const newFolderPath = normalizedNewPath ? `${normalizedNewPath}/${folderName}` : folderName;
+
+        set((state) => {
+            if (type === 'quest') {
+                const newFolders = { ...state.questFolders };
+                const newFiles = { ...state.questFiles };
+
+                if (folder) {
+                    newFolders[id] = { ...folder, path: normalizedNewPath };
+                }
+
+                Object.values(newFiles).forEach(file => {
+                    if (file.path === oldPath) {
+                        newFiles[file.id] = { ...file, path: newFolderPath };
+                    } else if (file.path.startsWith(oldPath + '/')) {
+                        newFiles[file.id] = { ...file, path: file.path.replace(oldPath, newFolderPath) };
+                    }
+                });
+
+                Object.values(newFolders).forEach(f => {
+                    if (f.id === id) return;
+                    if (f.path === oldPath) {
+                        newFolders[f.id] = { ...f, path: newFolderPath };
+                    } else if (f.path.startsWith(oldPath + '/')) {
+                        newFolders[f.id] = { ...f, path: f.path.replace(oldPath, newFolderPath) };
+                    }
+                });
+
+                return { questFiles: newFiles, questFolders: newFolders };
+            } else {
+                const newFolders = { ...state.conversationFolders };
+                const newFiles = { ...state.conversationFiles };
+
+                if (folder) {
+                    newFolders[id] = { ...folder, path: normalizedNewPath };
+                }
+
+                Object.values(newFiles).forEach(file => {
+                    if (file.path === oldPath) {
+                        newFiles[file.id] = { ...file, path: newFolderPath };
+                    } else if (file.path.startsWith(oldPath + '/')) {
+                        newFiles[file.id] = { ...file, path: file.path.replace(oldPath, newFolderPath) };
+                    }
+                });
+
+                Object.values(newFolders).forEach(f => {
+                    if (f.id === id) return;
+                    if (f.path === oldPath) {
+                        newFolders[f.id] = { ...f, path: newFolderPath };
+                    } else if (f.path.startsWith(oldPath + '/')) {
+                        newFolders[f.id] = { ...f, path: f.path.replace(oldPath, newFolderPath) };
+                    }
+                });
+
+                return { conversationFiles: newFiles, conversationFolders: newFolders };
+            }
+        });
+        
+        return { success: true };
+      },
+
+      setActiveFile: (id, type) => set((state) => ({ 
+        activeFileId: id,
+        activeFileType: type || (id ? state.activeFileType : null)
+      })),
+
+      importFiles: (newFiles) => set((state) => {
+        const newQuestFiles = { ...state.questFiles };
+        const newConversationFiles = { ...state.conversationFiles };
+        
+        newFiles.forEach(f => {
+            if (f.type === 'quest') {
+                newQuestFiles[f.id] = f;
+            } else {
+                newConversationFiles[f.id] = f;
+            }
+        });
+
+        return {
+          questFiles: newQuestFiles,
+          conversationFiles: newConversationFiles,
+          activeFileId: newFiles.length > 0 ? newFiles[0].id : state.activeFileId,
+          activeFileType: newFiles.length > 0 ? newFiles[0].type : state.activeFileType
+        };
+      })
+    }),
+    {
+      name: 'chemdah-project-storage',
+    }
+  )
+);

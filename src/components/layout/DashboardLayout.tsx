@@ -13,7 +13,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function DashboardLayout() {
   const [activeTab, setActiveTab] = useState<string>('quest');
-  const { files, folders, activeFileId, setActiveFile, createFile, deleteFile, renameFile, importFiles, moveFile, createFolder, deleteFolder, renameFolder } = useProjectStore();
+  const { 
+    questFiles, questFolders, conversationFiles, conversationFolders, 
+    activeFileId, activeFileType, setActiveFile, 
+    createFile, deleteFile, renameFile, importFiles, moveFile, 
+    createFolder, deleteFolder, renameFolder, moveFolder 
+  } = useProjectStore();
+  
+  const files = activeTab === 'quest' ? questFiles : conversationFiles;
+  const folders = activeTab === 'quest' ? questFolders : conversationFolders;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpened, { toggle: toggleSidebar }] = useDisclosure(true);
   
@@ -42,16 +51,19 @@ export default function DashboardLayout() {
   }, [files, activeTab, searchQuery]);
 
   const treeItems: TreeItem[] = useMemo(() => {
-    const fileItems = currentFiles.map(file => ({
-        id: file.id,
-        path: file.path ? `${file.path}/${file.name}` : file.name,
-        label: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-        data: file,
-        icon: <IconFileText size={16} style={{ marginRight: 8 }} />
-    }));
+    const fileItems = currentFiles.map(file => {
+        const isEmpty = !file.content || file.content.trim() === '';
+        return {
+            id: file.id,
+            path: file.path ? `${file.path}/${file.name}` : file.name,
+            label: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+            data: file,
+            icon: <IconFileText size={16} style={{ marginRight: 8, opacity: isEmpty ? 0.5 : 1 }} />
+        };
+    });
 
     const folderItems = Object.values(folders)
-        .filter(f => !f.type || f.type === activeTab)
+        .filter(f => f.type === activeTab)
         .map(folder => ({
             id: folder.id,
             path: folder.path ? `${folder.path}/${folder.name}` : folder.name,
@@ -109,9 +121,9 @@ export default function DashboardLayout() {
   const submitRename = () => {
     if (itemToRename && newName.trim()) {
         if (itemToRename.isFolder) {
-            renameFolder(itemToRename.id, newName.trim());
+            renameFolder(itemToRename.id, activeTab as FileType, newName.trim());
         } else {
-            renameFile(itemToRename.id, newName.trim());
+            renameFile(itemToRename.id, activeTab as FileType, newName.trim());
         }
         closeRenameModal();
     }
@@ -120,9 +132,19 @@ export default function DashboardLayout() {
   const handleExport = async () => {
     try {
         const zip = new JSZip();
-        Object.values(files).forEach(file => {
-            zip.file(file.path + '/' + file.name, file.content);
+        
+        // Export Quest Files
+        Object.values(questFiles).forEach(file => {
+            const path = file.path ? `quest/${file.path}/${file.name}` : `quest/${file.name}`;
+            zip.file(path, file.content);
         });
+
+        // Export Conversation Files
+        Object.values(conversationFiles).forEach(file => {
+            const path = file.path ? `conversation/${file.path}/${file.name}` : `conversation/${file.name}`;
+            zip.file(path, file.content);
+        });
+
         const content = await zip.generateAsync({ type: 'blob' });
         saveAs(content, 'chemdah-project.zip');
         notifications.show({
@@ -250,19 +272,43 @@ export default function DashboardLayout() {
                         onDelete={(id) => { 
                             if(confirm('确定删除吗?')) {
                                 if (files[id]) {
-                                    deleteFile(id);
+                                    deleteFile(id, activeTab as FileType);
                                 } else if (folders[id]) {
-                                    deleteFolder(id);
+                                    deleteFolder(id, activeTab as FileType);
                                 }
                             }
                         }}
-                        onDrop={(id, path) => moveFile(id, path)}
+                        onDrop={(id, path) => {
+                            let result;
+                            if (files[id]) {
+                                result = moveFile(id, activeTab as FileType, path);
+                            } else {
+                                result = moveFolder(id, activeTab as FileType, path);
+                            }
+                            
+                            if (result && !result.success) {
+                                notifications.show({
+                                    title: '移动失败',
+                                    message: result.message,
+                                    color: 'red'
+                                });
+                            }
+                        }}
                         defaultExpanded={[]}
-                        renderLabel={(item) => (
-                            <Highlight highlight={searchQuery} size="sm" fw={500} truncate="end">
-                                {item.label}
-                            </Highlight>
-                        )}
+                        renderLabel={(item) => {
+                            const isEmpty = !item.isFolder && item.data && (!item.data.content || item.data.content.trim() === '');
+                            return (
+                                <Highlight 
+                                    highlight={searchQuery} 
+                                    size="sm" 
+                                    fw={500} 
+                                    truncate="end"
+                                    c={isEmpty ? 'dimmed' : undefined}
+                                >
+                                    {item.label}
+                                </Highlight>
+                            );
+                        }}
                         renderActions={(item) => (
                             <Menu position="bottom-end" withinPortal>
                                 <Menu.Target>
@@ -302,9 +348,9 @@ export default function DashboardLayout() {
                                         e.stopPropagation(); 
                                         if(confirm('确定删除吗?')) {
                                             if (item.isFolder) {
-                                                deleteFolder(item.id);
+                                                deleteFolder(item.id, activeTab as FileType);
                                             } else {
-                                                deleteFile(item.id);
+                                                deleteFile(item.id, activeTab as FileType);
                                             }
                                         }
                                     }}>

@@ -1,8 +1,9 @@
-import { Text, Collapse, ActionIcon } from '@mantine/core';
-import { IconChevronRight, IconFileText, IconFolder, IconFolderOpen, IconTrash } from '@tabler/icons-react';
-import { useState, useMemo } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import classes from './FileTree.module.css';
+import React, { useState, useCallback, useMemo } from 'react';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, pointerWithin } from '@dnd-kit/core';
+import { IconChevronRight, IconFolder, IconFolderOpen, IconFileText, IconTrash } from '@tabler/icons-react';
+import { Text, ActionIcon } from '@mantine/core';
+
+// --- Types ---
 
 export interface TreeItem {
     id: string;
@@ -24,199 +25,390 @@ interface FileTreeProps {
     defaultExpanded?: string[];
 }
 
-export function FileTree({ items, activeId, onSelect, onDelete, onDrop, renderActions, renderLabel, defaultExpanded = [] }: FileTreeProps) {
-    const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
-        const initial: Record<string, boolean> = {};
-        defaultExpanded.forEach(path => initial[path] = true);
-        return initial;
+interface TreeNode {
+    id: string;
+    label: string;
+    path: string;
+    isFolder: boolean;
+    data?: any;
+    children?: TreeNode[];
+    originalItem?: TreeItem;
+}
+
+// --- Components ---
+
+const TreeNodeComponent = ({
+    node,
+    level,
+    onNodeClick,
+    selectedNodeId,
+    renderLabel,
+    renderActions,
+    onDelete,
+    expandedNodes,
+    onToggleExpand,
+    draggedNode,
+}: {
+    node: TreeNode;
+    level: number;
+    onNodeClick?: (node: TreeNode) => void;
+    selectedNodeId?: string | null;
+    renderLabel?: (item: TreeItem) => React.ReactNode;
+    renderActions?: (item: TreeItem) => React.ReactNode;
+    onDelete?: (id: string) => void;
+    expandedNodes: Set<string>;
+    onToggleExpand: (path: string) => void;
+    draggedNode: TreeNode | null;
+}) => {
+    const isSelected = node.id === selectedNodeId;
+    const isExpanded = expandedNodes.has(node.path);
+    const hasChildren = node.children && node.children.length > 0;
+    
+    // --- Drag Logic ---
+    // Allow dragging for all nodes (including implicit folders)
+    const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+        id: node.id,
+        data: node,
     });
 
-    const toggleFolder = (path: string) => {
-        setExpandedFolders(prev => ({ ...prev, [path]: !prev[path] }));
+    // --- Drop Logic ---
+    // Determine if this node is a valid drop target
+    // 1. Must be a folder
+    // 2. Cannot be the node being dragged (Self)
+    // 3. Cannot be a descendant of the node being dragged (Circular)
+    const isSelf = draggedNode?.id === node.id;
+    const isDescendant = draggedNode && node.path.startsWith(draggedNode.path + '/');
+    const isDroppable = node.isFolder && !isSelf && !isDescendant;
+
+    const { setNodeRef: setDropRef, isOver } = useDroppable({
+        id: node.path, // Use path as drop ID
+        data: node,
+        disabled: !isDroppable,
+    });
+
+    // --- Interaction ---
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Only toggle expand if it's a folder AND has children
+        if (node.isFolder && hasChildren) {
+            onToggleExpand(node.path);
+        }
+        if (onNodeClick) {
+            onNodeClick(node);
+        }
     };
 
-    // Group items by path
+    const [isHovered, setIsHovered] = useState(false);
+
+    // --- Styles ---
+    const style: React.CSSProperties = {
+        opacity: isDragging ? 0.4 : 1,
+        paddingLeft: `${level * 16 + 8}px`,
+    };
+
+    let bgClass = "bg-transparent";
+    if (isOver && isDroppable) {
+        // Strong highlight for valid drop target
+        bgClass = "bg-blue-500/20 ring-1 ring-inset ring-blue-500";
+    } else if (isSelected) {
+        bgClass = "bg-white/10";
+    } else if (isHovered) {
+        bgClass = "bg-white/5";
+    }
+
+    return (
+        <>
+            <div
+                ref={(el) => {
+                    setDragRef(el);
+                    if (node.isFolder) setDropRef(el);
+                }}
+                style={style}
+                className={`flex items-center py-1.5 pr-2 cursor-pointer transition-all select-none text-gray-400 hover:text-gray-200 ${bgClass}`}
+                onClick={handleClick}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                {...attributes}
+                {...listeners}
+            >
+                {/* Column 1: Arrow (Folder only) */}
+                <div className="w-5 h-5 flex items-center justify-center shrink-0 mr-1">
+                    {node.isFolder && hasChildren && (
+                        <IconChevronRight
+                            size={14}
+                            className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                    )}
+                </div>
+
+                {/* Column 2: Icon (Folder or File) */}
+                <div className="w-5 h-5 flex items-center justify-center shrink-0 mr-2 text-[#dcb67a]">
+                    {node.isFolder ? (
+                        isExpanded ? <IconFolderOpen size={16} /> : (
+                            hasChildren ? <IconFolder size={16} /> : <IconFolder size={16} className="opacity-50" />
+                        )
+                    ) : (
+                        <IconFileText size={16} className="text-gray-400" />
+                    )}
+                </div>
+
+                {/* Column 3: Label */}
+                <div className="flex-1 min-w-0 truncate">
+                    {node.originalItem && renderLabel ? renderLabel(node.originalItem) : <Text size="sm" truncate>{node.label}</Text>}
+                </div>
+
+                {/* Actions */}
+                <div className={`flex items-center transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                    {node.originalItem && (
+                        renderActions ? renderActions(node.originalItem) : (
+                            onDelete && (
+                                <ActionIcon 
+                                    size="xs" 
+                                    variant="subtle" 
+                                    color="red" 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if(confirm('Delete ' + node.label + '?')) onDelete(node.id);
+                                    }}
+                                >
+                                    <IconTrash size={12} />
+                                </ActionIcon>
+                            )
+                        )
+                    )}
+                </div>
+            </div>
+
+            {/* Children */}
+            {isExpanded && node.children && (
+                <div>
+                    {node.children.map(child => (
+                        <TreeNodeComponent
+                            key={child.id}
+                            node={child}
+                            level={level + 1}
+                            onNodeClick={onNodeClick}
+                            selectedNodeId={selectedNodeId}
+                            renderLabel={renderLabel}
+                            renderActions={renderActions}
+                            onDelete={onDelete}
+                            expandedNodes={expandedNodes}
+                            onToggleExpand={onToggleExpand}
+                            draggedNode={draggedNode}
+                        />
+                    ))}
+                </div>
+            )}
+        </>
+    );
+};
+
+const RootDropZone = ({ text, isDragging }: { text?: string, isDragging: boolean }) => {
+    const { setNodeRef, isOver } = useDroppable({
+        id: 'root-drop-zone',
+        data: { type: 'root' },
+        disabled: !isDragging // Only active when dragging
+    });
+
+    if (!isDragging) return null;
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={`mx-2 my-2 p-3 border-2 border-dashed rounded-lg transition-all flex items-center justify-center gap-2
+                ${isOver ? 'border-blue-500/50 bg-blue-500/10 opacity-100' : 'border-white/10 bg-transparent opacity-50'}`}
+        >
+            <IconFolderOpen size={16} className="text-gray-500" />
+            <span className="text-sm text-gray-500">
+                {text || 'Move to Root'}
+            </span>
+        </div>
+    );
+};
+
+export function FileTree({ items, activeId, onSelect, onDelete, onDrop, renderActions, renderLabel, defaultExpanded = [] }: FileTreeProps) {
+    // Convert flat items to tree structure
     const treeData = useMemo(() => {
-        const root: any = {};
-        
-        items.forEach(item => {
-            const parts = item.path.split('/');
-            let currentLevel = root;
-            
-            if (item.isFolder) {
-                // It's a folder. Walk the path.
-                parts.forEach((part, index) => {
-                    if (!currentLevel[part]) {
-                        currentLevel[part] = { __items: [] };
-                    }
-                    // If this is the last part, attach metadata
-                    if (index === parts.length - 1) {
-                        currentLevel[part].__id = item.id;
-                        currentLevel[part].__data = item.data;
-                        currentLevel[part].__label = item.label;
-                    }
-                    currentLevel = currentLevel[part];
-                });
-            } else {
-                // It's a file. Walk the path excluding the filename.
-                const folderParts = parts.slice(0, -1);
-                folderParts.forEach(part => {
-                    if (!currentLevel[part]) {
-                        currentLevel[part] = { __items: [] };
-                    }
-                    currentLevel = currentLevel[part];
-                });
+        const buildTree = (items: TreeItem[]): TreeNode[] => {
+            const levelMap: any = {};
+
+            items.forEach(item => {
+                const parts = item.path.split('/');
+                let currentLevel = levelMap;
                 
-                if (!currentLevel.__items) currentLevel.__items = [];
-                currentLevel.__items.push(item);
-            }
-        });
-        
-        return root;
+                const parentParts = parts.slice(0, -1);
+                const itemName = parts[parts.length - 1];
+
+                let currentPath = "";
+                parentParts.forEach((part) => {
+                    currentPath = currentPath ? `${currentPath}/${part}` : part;
+                    if (!currentLevel[part]) {
+                        currentLevel[part] = { 
+                            __node: {
+                                id: `folder-${currentPath}`,
+                                label: part,
+                                path: currentPath,
+                                isFolder: true,
+                                children: []
+                            },
+                            __children: {}
+                        };
+                    }
+                    currentLevel = currentLevel[part].__children;
+                });
+
+                if (item.isFolder) {
+                    if (!currentLevel[itemName]) {
+                        currentLevel[itemName] = { __children: {} };
+                    }
+                    currentLevel[itemName].__node = {
+                        id: item.id,
+                        label: item.label,
+                        path: item.path,
+                        isFolder: true,
+                        originalItem: item,
+                        children: []
+                    };
+                } else {
+                    if (!currentLevel[itemName]) {
+                        currentLevel[itemName] = { __children: {} };
+                    }
+                    currentLevel[itemName].__node = {
+                        id: item.id,
+                        label: item.label,
+                        path: item.path,
+                        isFolder: false,
+                        originalItem: item
+                    };
+                }
+            });
+
+            const flatten = (map: any): TreeNode[] => {
+                const nodes = Object.keys(map).map(key => {
+                    const entry = map[key];
+                    const node = entry.__node;
+                    if (node) {
+                        node.children = flatten(entry.__children);
+                        node.children.sort((a: TreeNode, b: TreeNode) => {
+                            if (a.isFolder === b.isFolder) return a.label.localeCompare(b.label);
+                            return a.isFolder ? -1 : 1;
+                        });
+                        return node;
+                    }
+                    return null;
+                }).filter(Boolean) as TreeNode[];
+                return nodes;
+            };
+
+            const result = flatten(levelMap);
+            result.sort((a: TreeNode, b: TreeNode) => {
+                if (a.isFolder === b.isFolder) return a.label.localeCompare(b.label);
+                return a.isFolder ? -1 : 1;
+            });
+            return result;
+        };
+
+        return buildTree(items);
     }, [items]);
 
-    const onDragEnd = (result: DropResult) => {
-        if (!result.destination || !onDrop) return;
-        // If dropped on root, path is empty string
-        // If dropped on a folder, path is the folder path
-        const targetPath = result.destination.droppableId === 'root' ? '' : result.destination.droppableId;
-        onDrop(result.draggableId, targetPath);
+    const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(defaultExpanded));
+    const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    const [draggedNode, setDraggedNode] = useState<TreeNode | null>(null);
+
+    const toggleExpand = useCallback((path: string) => {
+        setExpandedNodes(prev => {
+            const next = new Set(prev);
+            if (next.has(path)) next.delete(path);
+            else next.add(path);
+            return next;
+        });
+    }, []);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    );
+
+    const findNode = (nodes: TreeNode[], id: string): TreeNode | null => {
+        for (const node of nodes) {
+            if (node.id === id) return node;
+            if (node.children) {
+                const found = findNode(node.children, id);
+                if (found) return found;
+            }
+        }
+        return null;
     };
 
-    const renderTree = (node: any, path: string = '') => {
-        const items = node.__items || [];
-        const folders = Object.keys(node).filter(k => !k.startsWith('__'));
+    const handleDragStart = (event: DragStartEvent) => {
+        const id = event.active.id as string;
+        setActiveDragId(id);
+        const node = findNode(treeData, id);
+        setDraggedNode(node);
+    };
 
-        return (
-            <Droppable droppableId={path || 'root'} type="FILE">
-                {(provided, snapshot) => (
-                    <div 
-                        ref={provided.innerRef} 
-                        {...provided.droppableProps}
-                        style={{ 
-                            minHeight: items.length === 0 && folders.length === 0 ? (snapshot.isDraggingOver ? 30 : 0) : 5,
-                            backgroundColor: snapshot.isDraggingOver ? 'var(--mantine-color-dark-6)' : 'transparent',
-                            transition: 'background-color 0.2s',
-                            paddingBottom: path === '' && snapshot.isDraggingOver ? 40 : 0, // Add space for root drop
-                            position: 'relative'
-                        }}
-                    >
-                        {folders.map(folderKey => {
-                            const currentPath = path ? `${path}/${folderKey}` : folderKey;
-                            const isExpanded = expandedFolders[currentPath];
-                            const folderNode = node[folderKey];
-                            const folderId = folderNode.__id;
-                            const folderLabel = folderNode.__label || folderKey;
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        setActiveDragId(null);
+        setDraggedNode(null);
 
-                            return (
-                                <div key={currentPath}>
-                                    <div className={classes.node} onClick={() => toggleFolder(currentPath)}>
-                                        <div className={classes.nodeContent}>
-                                            <IconChevronRight
-                                                size={14}
-                                                style={{ 
-                                                    marginRight: 4, 
-                                                    transform: isExpanded ? 'rotate(90deg)' : 'none',
-                                                    transition: 'transform 200ms ease'
-                                                }} 
-                                            />
-                                            {isExpanded ? <IconFolderOpen size={14} style={{ marginRight: 8, color: '#dcb67a' }} /> : <IconFolder size={14} style={{ marginRight: 8, color: '#dcb67a' }} />}
-                                            <Text size="sm" fw={500}>{folderLabel}</Text>
-                                        </div>
-                                        <div className={classes.actions}>
-                                            {folderId && renderActions && renderActions({ 
-                                                id: folderId, 
-                                                path: currentPath, 
-                                                label: folderLabel, 
-                                                isFolder: true,
-                                                data: folderNode.__data 
-                                            })}
-                                        </div>
-                                    </div>
-                                    <Collapse in={isExpanded}>
-                                        <div style={{ paddingLeft: 12 }}>
-                                            {renderTree(node[folderKey], currentPath)}
-                                        </div>
-                                    </Collapse>
-                                </div>
-                            );
-                        })}
+        if (!over) return;
 
-                        {items.map((item: TreeItem, index: number) => (
-                            <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={!onDrop}>
-                                {(provided, snapshot) => (
-                                    <div
-                                        ref={provided.innerRef}
-                                        {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        style={{ 
-                                            ...provided.draggableProps.style,
-                                            opacity: snapshot.isDragging ? 0.5 : 1
-                                        }}
-                                    >
-                                        <div 
-                                            className={classes.node} 
-                                            data-active={activeId === item.id || undefined} 
-                                            onClick={() => onSelect?.(item.id)}
-                                        >
-                                            <div className={classes.nodeContent}>
-                                                <span style={{ width: 18, display: 'inline-block', flexShrink: 0 }} />
-                                                {item.icon || <IconFileText size={14} style={{ marginRight: 8 }} />}
-                                                {renderLabel ? renderLabel(item) : <Text size="sm" truncate>{item.label}</Text>}
-                                            </div>
-                                            <div className={classes.actions}>
-                                                {renderActions ? renderActions(item) : (
-                                                    onDelete && (
-                                                        <ActionIcon 
-                                                            size="xs" 
-                                                            variant="subtle" 
-                                                            color="red" 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if(confirm('Delete ' + item.label + '?')) onDelete(item.id);
-                                                            }}
-                                                        >
-                                                            <IconTrash size={12} />
-                                                        </ActionIcon>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </Draggable>
-                        ))}
-                        {provided.placeholder}
-                        {path === '' && snapshot.isDraggingOver && (
-                            <div style={{ 
-                                position: 'absolute', 
-                                bottom: 0, 
-                                left: 0, 
-                                right: 0, 
-                                height: 40, 
-                                border: '2px dashed var(--mantine-color-dimmed)', 
-                                borderRadius: 4,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--mantine-color-dimmed)',
-                                fontSize: 12,
-                                pointerEvents: 'none'
-                            }}>
-                                拖放到此处移动到根目录
-                            </div>
-                        )}
-                    </div>
-                )}
-            </Droppable>
-        );
+        const sourceId = active.id as string;
+        let targetPath = '';
+
+        if (over.id === 'root-drop-zone') {
+            targetPath = '';
+        } else {
+            targetPath = over.id as string;
+        }
+
+        if (onDrop) {
+            onDrop(sourceId, targetPath);
+        }
     };
 
     return (
-        <DragDropContext onDragEnd={onDragEnd}>
-            <div className={classes.tree}>
-                {renderTree(treeData)}
+        <DndContext
+            sensors={sensors}
+            collisionDetection={pointerWithin}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+        >
+            <div className="select-none pb-10">
+                {treeData.map(node => (
+                    <TreeNodeComponent
+                        key={node.id}
+                        node={node}
+                        level={0}
+                        onNodeClick={(n) => onSelect?.(n.id)}
+                        selectedNodeId={activeId}
+                        renderLabel={renderLabel}
+                        renderActions={renderActions}
+                        onDelete={onDelete}
+                        expandedNodes={expandedNodes}
+                        onToggleExpand={toggleExpand}
+                        draggedNode={draggedNode}
+                    />
+                ))}
+
+                <RootDropZone isDragging={!!activeDragId} />
             </div>
-        </DragDropContext>
+
+            <DragOverlay>
+                {draggedNode && (
+                    <div className="px-3 py-1.5 rounded-md shadow-xl bg-zinc-800 border border-zinc-700 opacity-90 flex items-center">
+                        <div className="mr-2 text-[#dcb67a]">
+                            {draggedNode.isFolder ? <IconFolder size={16} /> : <IconFileText size={16} className="text-gray-400" />}
+                        </div>
+                        <Text size="sm">{draggedNode.label}</Text>
+                    </div>
+                )}
+            </DragOverlay>
+        </DndContext>
     );
 }
+

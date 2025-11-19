@@ -10,8 +10,8 @@ interface QuestEditorProps {
 }
 
 export default function QuestEditor({ fileId }: QuestEditorProps) {
-  const { files } = useProjectStore();
-  const file = files[fileId];
+  const { questFiles } = useProjectStore();
+  const file = questFiles[fileId];
   const [opened, { open, close }] = useDisclosure(false);
 
   if (!file) return null;

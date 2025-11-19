@@ -55,7 +55,7 @@ export default function FlowCanvas({ fileId }: { fileId: string }) {
         }
     });
 
-    updateFileContent(fileId, toYaml(conversationObj));
+    updateFileContent(fileId, 'conversation', toYaml(conversationObj));
   };
 
   return (

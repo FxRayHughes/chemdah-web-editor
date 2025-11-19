@@ -10,8 +10,8 @@ import { QuestTaskList } from './QuestTaskList';
 import { QuestDetail } from './QuestDetail';
 
 export default function QuestForm({ fileId }: { fileId: string }) {
-  const { files, updateFileContent } = useProjectStore();
-  const file = files[fileId];
+  const { questFiles, updateFileContent } = useProjectStore();
+  const file = questFiles[fileId];
   
   // Parse YAML safely
   const data = parseYaml(file.content) || {};
@@ -65,7 +65,7 @@ export default function QuestForm({ fileId }: { fileId: string }) {
   const handleUpdate = (newData: any, newId?: string) => {
     const idToUse = newId || questId;
     const newYaml = toYaml({ [idToUse]: newData });
-    updateFileContent(fileId, newYaml);
+    updateFileContent(fileId, 'quest', newYaml);
   };
 
   const handleTaskUpdate = (taskId: string, taskData: any) => {

@@ -7,3 +7,5 @@ export * from './FormScript';
 export * from './FormAddon';
 export * from './ContextMenu';
 export * from './FileTree';
+export * from './FormSwitch';
+export * from './AnimatedTabs';

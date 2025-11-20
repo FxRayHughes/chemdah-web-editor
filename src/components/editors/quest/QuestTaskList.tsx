@@ -82,6 +82,7 @@ export function QuestTaskList({ tasks, activeTaskId, onSelect, onAdd, onDelete, 
                                                     >
                                                         <NavLink
                                                             label={taskId}
+                                                            className="hover:bg-white/5 transition-colors"
                                                             leftSection={
                                                                 <div {...provided.dragHandleProps} style={{ cursor: 'grab', display: 'flex', alignItems: 'center', opacity: 0.5 }}>
                                                                     <IconGripVertical size={14} />

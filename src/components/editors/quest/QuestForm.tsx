@@ -8,6 +8,7 @@ import { DropResult } from '@hello-pangea/dnd';
 import { QuestSettings } from './QuestSettings';
 import { QuestTaskList } from './QuestTaskList';
 import { QuestDetail } from './QuestDetail';
+import { AnimatedTabs } from '../../ui';
 
 export default function QuestForm({ fileId }: { fileId: string }) {
   const { questFiles, updateFileContent } = useProjectStore();
@@ -158,12 +159,16 @@ export default function QuestForm({ fileId }: { fileId: string }) {
 
   return (
     <Paper radius={0} h="100%" style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'var(--mantine-color-dark-8)' }}>
-      <Tabs defaultValue="meta" h="100%" display="flex" style={{ flexDirection: 'column' }}>
-        <Tabs.List bg="var(--mantine-color-dark-7)">
-            <Tabs.Tab value="meta" leftSection={<IconSettings size={14} />}>全局设置</Tabs.Tab>
-            <Tabs.Tab value="tasks" leftSection={<IconCheckbox size={14} />}>任务流程</Tabs.Tab>
-        </Tabs.List>
-
+      <AnimatedTabs
+        defaultValue="meta"
+        h="100%"
+        display="flex"
+        style={{ flexDirection: 'column' }}
+        tabs={[
+            { value: 'meta', label: '全局设置', icon: <IconSettings size={14} /> },
+            { value: 'tasks', label: '任务流程', icon: <IconCheckbox size={14} /> }
+        ]}
+      >
         <Tabs.Panel value="meta" style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
             <QuestSettings 
                 questId={questId} 
@@ -211,7 +216,7 @@ export default function QuestForm({ fileId }: { fileId: string }) {
                 )}
             </div>
         </Tabs.Panel>
-      </Tabs>
+      </AnimatedTabs>
     </Paper>
   );
 }

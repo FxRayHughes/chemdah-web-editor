@@ -89,16 +89,18 @@ const TreeNodeComponent = ({
     // --- Interaction ---
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        // Only toggle expand if it's a folder AND has children
-        if (node.isFolder && hasChildren) {
-            onToggleExpand(node.path);
+        
+        if (node.isFolder) {
+            if (hasChildren) {
+                onToggleExpand(node.path);
+            }
+            return;
         }
+
         if (onNodeClick) {
             onNodeClick(node);
         }
     };
-
-    const [isHovered, setIsHovered] = useState(false);
 
     // --- Styles ---
     const style: React.CSSProperties = {
@@ -106,14 +108,12 @@ const TreeNodeComponent = ({
         paddingLeft: `${level * 16 + 8}px`,
     };
 
-    let bgClass = "bg-transparent";
+    let bgClass = "bg-transparent hover:bg-white/5";
     if (isOver && isDroppable) {
         // Strong highlight for valid drop target
         bgClass = "bg-blue-500/20 ring-1 ring-inset ring-blue-500";
     } else if (isSelected) {
         bgClass = "bg-white/10";
-    } else if (isHovered) {
-        bgClass = "bg-white/5";
     }
 
     return (
@@ -124,10 +124,8 @@ const TreeNodeComponent = ({
                     if (node.isFolder) setDropRef(el);
                 }}
                 style={style}
-                className={`flex items-center py-1.5 pr-2 cursor-pointer transition-all select-none text-gray-400 hover:text-gray-200 ${bgClass}`}
+                className={`group flex items-center py-1.5 pr-2 cursor-pointer transition-all select-none text-gray-400 hover:text-gray-200 ${bgClass}`}
                 onClick={handleClick}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
                 {...attributes}
                 {...listeners}
             >
@@ -158,7 +156,7 @@ const TreeNodeComponent = ({
                 </div>
 
                 {/* Actions */}
-                <div className={`flex items-center transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                <div className={`flex items-center transition-opacity opacity-0 group-hover:opacity-100`}>
                     {node.originalItem && (
                         renderActions ? renderActions(node.originalItem) : (
                             onDelete && (

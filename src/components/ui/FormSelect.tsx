@@ -18,5 +18,22 @@ export function FormSelect(props: SelectProps) {
         return props.label;
     };
 
-    return <Select searchable allowDeselect={false} nothingFoundMessage="无匹配选项" {...props} label={props.label ? renderLabel() : undefined} />;
+    return <Select 
+        searchable 
+        allowDeselect={false} 
+        nothingFoundMessage="无匹配选项" 
+        comboboxProps={{ 
+            transitionProps: { transition: 'pop', duration: 200 }, 
+            shadow: 'md' 
+        }}
+        styles={{ 
+            dropdown: { 
+                backgroundColor: 'rgba(26, 27, 30, 0.9)', 
+                backdropFilter: 'blur(10px)', 
+                border: '1px solid rgba(255,255,255,0.1)',
+            } 
+        }}
+        {...props} 
+        label={props.label ? renderLabel() : undefined} 
+    />;
 }

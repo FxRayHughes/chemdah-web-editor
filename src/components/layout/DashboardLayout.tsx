@@ -1,7 +1,8 @@
 import { AppShell, Group, Title, Button, Stack, Text, ScrollArea, ActionIcon, Box, TextInput, Menu, Modal, FileButton, Highlight, SegmentedControl, Badge } from '@mantine/core';
-import { IconPlus, IconTrash, IconFileText, IconSearch, IconEdit, IconDotsVertical, IconDownload, IconUpload, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconFolderPlus, IconFilePlus } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconFileText, IconSearch, IconEdit, IconDotsVertical, IconDownload, IconUpload, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconFolderPlus, IconFilePlus, IconSettings } from '@tabler/icons-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useProjectStore, FileType, VirtualFile } from '../../store/useProjectStore';
+import { useApiStore } from '../../store/useApiStore';
 import { FileTree, TreeItem } from '../ui';
 import QuestEditor from '../editors/quest/QuestEditor';
 import ConversationEditor from '../editors/conversation/ConversationEditor';
@@ -19,6 +20,7 @@ export default function DashboardLayout() {
     createFile, deleteFile, renameFile, importFiles, moveFile, 
     createFolder, deleteFolder, renameFolder, moveFolder 
   } = useProjectStore();
+  const { setApiData } = useApiStore();
   
   const files = activeTab === 'quest' ? questFiles : conversationFiles;
   const folders = activeTab === 'quest' ? questFolders : conversationFolders;
@@ -201,6 +203,27 @@ export default function DashboardLayout() {
     }
   };
 
+  const handleImportApi = async (file: File | null) => {
+    if (!file) return;
+    
+    try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        setApiData(json);
+        notifications.show({
+            title: 'API 导入成功',
+            message: '自定义 API 定义已加载',
+            color: 'green'
+        });
+    } catch (error) {
+        notifications.show({
+            title: 'API 导入失败',
+            message: '无法解析 API 文件',
+            color: 'red'
+        });
+    }
+  };
+
   return (
     <>
         <AppShell
@@ -214,10 +237,13 @@ export default function DashboardLayout() {
                 <ActionIcon variant="subtle" onClick={toggleSidebar}>
                     {sidebarOpened ? <IconLayoutSidebarLeftCollapse /> : <IconLayoutSidebarLeftExpand />}
                 </ActionIcon>
-                <Title order={3} size="h4">Chemdah 编辑器</Title>
+                <Title order={3} size="h4">Chemdah Lab</Title>
             </Group>
             
             <Group>
+                <FileButton onChange={handleImportApi} accept=".json">
+                    {(props) => <Button {...props} variant="subtle" size="xs" leftSection={<IconSettings size={16} />}>API</Button>}
+                </FileButton>
                 <FileButton onChange={handleImport} accept=".zip">
                     {(props) => <Button {...props} variant="subtle" size="xs" leftSection={<IconUpload size={16} />}>导入</Button>}
                 </FileButton>

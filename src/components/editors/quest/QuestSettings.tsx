@@ -1,7 +1,11 @@
 import { Tabs, ScrollArea, Box, Stack, Title } from '@mantine/core';
 import { IconInfoCircle, IconAdjustments, IconScript, IconPuzzle } from '@tabler/icons-react';
-import { FormInput, FormSelect, FormCheckbox, FormTextarea, FormSection, FormAddon } from '../../ui';
+import { FormInput, FormSelect, FormCheckbox, FormSection } from '../../ui';
 import { AgentEditor } from './AgentEditor';
+import { UIAddon } from './addons/UIAddon';
+import { TrackAddon } from './addons/TrackAddon';
+import { PartyAddon } from './addons/PartyAddon';
+import { AutomationAddon } from './addons/AutomationAddon';
 
 interface QuestSettingsProps {
     questId: string;
@@ -13,10 +17,10 @@ export function QuestSettings({ questId, questData, onUpdate }: QuestSettingsPro
     return (
         <Tabs defaultValue="basic" orientation="vertical" variant="pills" style={{ flex: 1, display: 'flex', height: '100%' }}>
             <Tabs.List w={220} bg="var(--mantine-color-dark-7)" p="xs" style={{ borderRight: '1px solid var(--mantine-color-dark-6)' }}>
-                <Tabs.Tab value="basic" leftSection={<IconInfoCircle size={14} />}>基本信息</Tabs.Tab>
-                <Tabs.Tab value="options" leftSection={<IconAdjustments size={14} />}>高级选项</Tabs.Tab>
-                <Tabs.Tab value="addons" leftSection={<IconPuzzle size={14} />}>组件配置</Tabs.Tab>
-                <Tabs.Tab value="agent" leftSection={<IconScript size={14} />}>脚本代理</Tabs.Tab>
+                <Tabs.Tab value="basic" leftSection={<IconInfoCircle size={14} />} className="hover:bg-white/5 transition-colors">基本信息</Tabs.Tab>
+                <Tabs.Tab value="options" leftSection={<IconAdjustments size={14} />} className="hover:bg-white/5 transition-colors">高级选项</Tabs.Tab>
+                <Tabs.Tab value="addons" leftSection={<IconPuzzle size={14} />} className="hover:bg-white/5 transition-colors">组件配置</Tabs.Tab>
+                <Tabs.Tab value="agent" leftSection={<IconScript size={14} />} className="hover:bg-white/5 transition-colors">脚本代理</Tabs.Tab>
             </Tabs.List>
 
             <ScrollArea style={{ flex: 1 }}>
@@ -78,150 +82,26 @@ export function QuestSettings({ questId, questData, onUpdate }: QuestSettingsPro
                         <Stack gap="md">
                             <Title order={4}>组件配置</Title>
                             
-                            {/* UI Addon */}
-                            <FormAddon
-                                label="界面 (UI)"
-                                description="任务显示图标、描述等"
-                                checked={!!questData.addon?.ui}
-                                onChange={(checked) => {
-                                    if (checked) {
-                                        onUpdate({ ...questData, addon: { ...questData.addon, ui: { visible: { start: false, complete: true } } } });
-                                    } else {
-                                        const { ui, ...rest } = questData.addon || {};
-                                        onUpdate({ ...questData, addon: rest });
-                                    }
-                                }}
-                            >
-                                <FormInput
-                                    label="图标 (Icon)"
-                                    value={questData.addon?.ui?.icon || ''}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, ui: { ...questData.addon?.ui, icon: e.target.value } }
-                                    })}
-                                />
-                                <FormTextarea
-                                    label="描述 (Description)"
-                                    value={Array.isArray(questData.addon?.ui?.description) ? questData.addon.ui.description.join('\n') : (questData.addon?.ui?.description || '')}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, ui: { ...questData.addon?.ui, description: e.target.value.split('\n') } }
-                                    })}
-                                />
-                                <FormCheckbox
-                                    label="开始时可见 (Visible Start)"
-                                    checked={questData.addon?.ui?.visible?.start || false}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, ui: { ...questData.addon?.ui, visible: { ...questData.addon?.ui?.visible, start: e.currentTarget.checked } } }
-                                    })}
-                                />
-                                <FormCheckbox
-                                    label="完成后可见 (Visible Complete)"
-                                    checked={questData.addon?.ui?.visible?.complete ?? true}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, ui: { ...questData.addon?.ui, visible: { ...questData.addon?.ui?.visible, complete: e.currentTarget.checked } } }
-                                    })}
-                                />
-                            </FormAddon>
+                            <UIAddon 
+                                addon={questData.addon} 
+                                onChange={(newAddon) => onUpdate({ ...questData, addon: newAddon })} 
+                            />
 
-                            {/* Track Addon */}
-                            <FormAddon
-                                label="追踪 (Track)"
-                                description="任务追踪设置"
-                                checked={!!questData.addon?.track}
-                                onChange={(checked) => {
-                                    if (checked) {
-                                        onUpdate({ ...questData, addon: { ...questData.addon, track: {} } });
-                                    } else {
-                                        const { track, ...rest } = questData.addon || {};
-                                        onUpdate({ ...questData, addon: rest });
-                                    }
-                                }}
-                            >
-                                <FormCheckbox
-                                    label="启用记分板追踪 (Scoreboard Track)"
-                                    checked={questData.addon?.track?.scoreboard || false}
-                                    onChange={(e) => onUpdate({ 
-                                        ...questData, 
-                                        addon: { ...questData.addon, track: { ...questData.addon?.track, scoreboard: e.currentTarget.checked } } 
-                                    })}
-                                />
-                            </FormAddon>
+                            <TrackAddon 
+                                addon={questData.addon} 
+                                onChange={(newAddon) => onUpdate({ ...questData, addon: newAddon })} 
+                                type="quest"
+                            />
 
-                            {/* Party Addon */}
-                            <FormAddon
-                                label="组队 (Party)"
-                                description="组队共享设置"
-                                checked={!!questData.addon?.party}
-                                onChange={(checked) => {
-                                    if (checked) {
-                                        onUpdate({ ...questData, addon: { ...questData.addon, party: {} } });
-                                    } else {
-                                        const { party, ...rest } = questData.addon || {};
-                                        onUpdate({ ...questData, addon: rest });
-                                    }
-                                }}
-                            >
-                                <FormCheckbox
-                                    label="共享任务 (Share)"
-                                    checked={questData.addon?.party?.share || false}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, party: { ...questData.addon?.party, share: e.currentTarget.checked } }
-                                    })}
-                                />
-                                <FormCheckbox
-                                    label="仅队长共享 (Share Only Leader)"
-                                    checked={questData.addon?.party?.['share-only-leader'] || false}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, party: { ...questData.addon?.party, 'share-only-leader': e.currentTarget.checked } }
-                                    })}
-                                />
-                                <FormCheckbox
-                                    label="允许协助 (Continue)"
-                                    checked={questData.addon?.party?.continue || false}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, party: { ...questData.addon?.party, continue: e.currentTarget.checked } }
-                                    })}
-                                />
-                                <FormInput
-                                    label="最少人数 (Require Members)"
-                                    type="number"
-                                    value={questData.addon?.party?.['require-members'] || ''}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, party: { ...questData.addon?.party, 'require-members': parseInt(e.target.value) || 0 } }
-                                    })}
-                                />
-                            </FormAddon>
+                            <PartyAddon 
+                                addon={questData.addon} 
+                                onChange={(newAddon) => onUpdate({ ...questData, addon: newAddon })} 
+                            />
 
-                            {/* Automation Addon */}
-                            <FormAddon
-                                label="自动化 (Automation)"
-                                description="自动接受与计划任务"
-                                checked={!!questData.addon?.automation}
-                                onChange={(checked) => {
-                                    if (checked) {
-                                        onUpdate({ ...questData, addon: { ...questData.addon, automation: {} } });
-                                    } else {
-                                        const { automation, ...rest } = questData.addon || {};
-                                        onUpdate({ ...questData, addon: rest });
-                                    }
-                                }}
-                            >
-                                <FormCheckbox
-                                    label="自动接受 (Auto Accept)"
-                                    checked={questData.addon?.automation?.['auto-accept'] || false}
-                                    onChange={(e) => onUpdate({
-                                        ...questData,
-                                        addon: { ...questData.addon, automation: { ...questData.addon?.automation, 'auto-accept': e.currentTarget.checked } }
-                                    })}
-                                />
-                            </FormAddon>
+                            <AutomationAddon 
+                                addon={questData.addon} 
+                                onChange={(newAddon) => onUpdate({ ...questData, addon: newAddon })} 
+                            />
                         </Stack>
                     </Tabs.Panel>
 

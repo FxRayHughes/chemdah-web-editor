@@ -1,18 +1,29 @@
 import { Handle, Position, NodeProps } from 'reactflow';
-import { Card, Text, Stack, Box, ThemeIcon, Group } from '@mantine/core';
-import { IconMessage } from '@tabler/icons-react';
+import { Card, Text, Stack, Box, ThemeIcon, Group, Badge } from '@mantine/core';
+import { IconMessage, IconMapPin } from '@tabler/icons-react';
 
 export type AgentNodeData = {
   label: string;
+  npcId?: string;
+  condition?: string;
   npcLines: string[];
+  agent?: {
+    begin?: string;
+    end?: string;
+    refuse?: string;
+  };
   playerOptions: {
-    id: string; // internal id for the option (index or uuid)
+    id: string;
     text: string;
-    target?: string; // store original 'then' script
+    condition?: string; // 'if' field
+    actions?: string; // script before goto
+    target?: string; // raw target if needed, but mostly handled by edges
   }[];
 };
 
 export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) {
+  const isEntry = !!data.npcId;
+
   return (
     <Card 
       shadow="md" 
@@ -21,8 +32,8 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) 
       withBorder 
       style={{ 
         width: 280,
-        borderColor: selected ? 'var(--mantine-color-blue-5)' : 'var(--mantine-color-dark-4)',
-        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? 'var(--mantine-color-blue-5)' : (isEntry ? 'var(--mantine-color-orange-6)' : 'var(--mantine-color-dark-4)'),
+        borderWidth: selected || isEntry ? 2 : 1,
         overflow: 'visible',
         backgroundColor: 'var(--mantine-color-dark-7)',
         transition: 'all 0.2s ease'
@@ -59,7 +70,7 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) 
 
       {/* Header */}
       <Box 
-        bg="var(--mantine-color-dark-6)" 
+        bg={isEntry ? "rgba(253, 126, 20, 0.15)" : "var(--mantine-color-dark-6)"}
         p="xs" 
         h={48}
         style={{ 
@@ -70,11 +81,15 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) 
         }}
       >
         <Group gap="xs">
-            <ThemeIcon size="sm" radius="md" color="blue" variant="light">
-                <IconMessage size={14} />
+            <ThemeIcon size="sm" radius="md" color={isEntry ? "orange" : "blue"} variant="light">
+                {isEntry ? <IconMapPin size={14} /> : <IconMessage size={14} />}
             </ThemeIcon>
-            <Text fw={700} size="sm" c="white" lineClamp={1}>{data.label}</Text>
+            <Stack gap={0}>
+                <Text fw={700} size="sm" c="white" lineClamp={1}>{data.label}</Text>
+                {isEntry && <Text size="xs" c="orange.3" style={{ lineHeight: 1, fontSize: 10 }}>NPC: {data.npcId}</Text>}
+            </Stack>
         </Group>
+        {isEntry && <Badge size="xs" variant="light" color="orange">ENTRY</Badge>}
       </Box>
 
       <Stack gap={0}>
@@ -95,7 +110,7 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) 
                         </Box>
                     ))
                 ) : (
-                    <Text size="xs" c="dimmed" fs="italic">No content...</Text>
+                    <Text size="xs" c="dimmed" fs="italic">无内容...</Text>
                 )}
             </Stack>
         </Box>

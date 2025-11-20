@@ -1,5 +1,5 @@
-import { Switch, Paper, Stack, Collapse, Group, Text, Box, Badge } from '@mantine/core';
-import { useUncontrolled } from '@mantine/hooks';
+import { Switch, Paper, Stack, Collapse, Group, Text, Box, Badge, Modal, Button } from '@mantine/core';
+import { useUncontrolled, useDisclosure } from '@mantine/hooks';
 
 interface FormAddonProps {
     label: React.ReactNode;
@@ -17,6 +17,22 @@ export function FormAddon({ label, description, checked, defaultChecked, onChang
         finalValue: false,
         onChange,
     });
+
+    const [opened, { open, close }] = useDisclosure(false);
+
+    const handleSwitchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const nextChecked = event.currentTarget.checked;
+        if (!nextChecked && children) {
+            open();
+        } else {
+            handleChange(nextChecked);
+        }
+    };
+
+    const handleConfirmClose = () => {
+        handleChange(false);
+        close();
+    };
 
     const renderLabel = () => {
         if (typeof label === 'string') {
@@ -36,24 +52,35 @@ export function FormAddon({ label, description, checked, defaultChecked, onChang
     };
 
     return (
-        <Paper withBorder p="md" style={{ 
-            borderColor: _checked ? 'var(--mantine-color-blue-8)' : undefined,
-            backgroundColor: _checked ? 'rgba(25, 113, 194, 0.05)' : undefined
-        }}>
-            <Group justify="space-between" mb={_checked && children ? 'md' : 0}>
-                <Box>
-                    {renderLabel()}
-                    {description && <Text size="xs" c="dimmed">{description}</Text>}
-                </Box>
-                <Switch checked={_checked} onChange={(event) => handleChange(event.currentTarget.checked)} />
-            </Group>
-            {children && (
-                <Collapse in={_checked}>
-                    <Stack gap="md">
-                        {children}
-                    </Stack>
-                </Collapse>
-            )}
-        </Paper>
+        <>
+            <Modal opened={opened} onClose={close} title="确认关闭" centered size="sm">
+                <Text size="sm" mb="lg">
+                    关闭此选项将清除已配置的内容，确定要继续吗？
+                </Text>
+                <Group justify="flex-end">
+                    <Button variant="default" onClick={close}>取消</Button>
+                    <Button color="red" onClick={handleConfirmClose}>确认关闭</Button>
+                </Group>
+            </Modal>
+            <Paper withBorder p="md" style={{ 
+                borderColor: _checked ? 'var(--mantine-color-blue-8)' : undefined,
+                backgroundColor: _checked ? 'rgba(25, 113, 194, 0.05)' : undefined
+            }}>
+                <Group justify="space-between" mb={_checked && children ? 'md' : 0}>
+                    <Box>
+                        {renderLabel()}
+                        {description && <Text size="xs" c="dimmed">{description}</Text>}
+                    </Box>
+                    <Switch checked={_checked} onChange={handleSwitchChange} />
+                </Group>
+                {children && (
+                    <Collapse in={_checked}>
+                        <Stack gap="md">
+                            {children}
+                        </Stack>
+                    </Collapse>
+                )}
+            </Paper>
+        </>
     );
 }

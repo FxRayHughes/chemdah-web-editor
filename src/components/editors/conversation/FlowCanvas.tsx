@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, Connection, Edge, Panel, Node, OnSelectionChangeParams } from 'reactflow';
-import { Paper, Text, Button, Stack } from '@mantine/core';
+import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, Connection, Edge, Panel, Node, reconnectEdge } from 'reactflow';
+import { Paper, Button, Group } from '@mantine/core';
 import { useProjectStore } from '../../../store/useProjectStore';
-import { IconRefresh, IconPlus, IconDeviceFloppy } from '@tabler/icons-react';
+import { IconPlus, IconLayoutDashboard } from '@tabler/icons-react';
 import AgentNode, { AgentNodeData } from './nodes/AgentNode';
-import { parseConversationToFlow, generateYamlFromFlow } from './conversation-utils';
-import AgentProperties from './AgentProperties';
+import { parseConversationToFlow, generateYamlFromFlow, autoLayout } from './conversation-utils';
+import { ConversationNodeEditor } from './ConversationNodeEditor';
 
 import 'reactflow/dist/style.css';
 
@@ -17,7 +17,7 @@ export default function FlowCanvas({ fileId }: { fileId: string }) {
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -33,26 +33,30 @@ export default function FlowCanvas({ fileId }: { fileId: string }) {
     [setEdges],
   );
 
-  const onSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams) => {
-    if (nodes.length > 0) {
-        setSelectedNodeId(nodes[0].id);
-    } else {
-        setSelectedNodeId(null);
-    }
-  }, []);
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => setEdges((els) => reconnectEdge(oldEdge, newConnection, els)),
+    [setEdges],
+  );
 
-  const handleReload = () => {
-    if (file?.content) {
-        const { nodes: initialNodes, edges: initialEdges } = parseConversationToFlow(file.content);
-        setNodes(initialNodes);
-        setEdges(initialEdges);
-    }
+  const handleAutoLayout = () => {
+    const layouted = autoLayout(nodes, edges);
+    setNodes([...layouted.nodes]);
+    setEdges([...layouted.edges]);
   };
 
   const handleSave = () => {
     const yaml = generateYamlFromFlow(nodes, edges);
     updateFileContent(fileId, 'conversation', yaml);
   };
+
+  // Auto-save
+  useEffect(() => {
+      const timer = setTimeout(() => {
+          handleSave();
+      }, 1000);
+
+      return () => clearTimeout(timer);
+  }, [nodes, edges]);
 
   const handleAddNode = () => {
     const id = `node_${Date.now()}`;
@@ -71,16 +75,21 @@ export default function FlowCanvas({ fileId }: { fileId: string }) {
     setNodes((nds) => nds.concat(newNode));
   };
 
-  const handleNodeUpdate = (id: string, newData: AgentNodeData) => {
+  const handleNodeUpdate = (newData: AgentNodeData) => {
+    if (!editingNodeId) return;
     setNodes((nds) => nds.map((node) => {
-        if (node.id === id) {
+        if (node.id === editingNodeId) {
             return { ...node, data: newData };
         }
         return node;
     }));
   };
 
-  const selectedNode = nodes.find(n => n.id === selectedNodeId);
+  const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
+    setEditingNodeId(node.id);
+  };
+
+  const editingNode = nodes.find(n => n.id === editingNodeId);
 
   return (
     <Paper h="100%" radius={0} style={{ overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'row' }}>
@@ -91,7 +100,8 @@ export default function FlowCanvas({ fileId }: { fileId: string }) {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                onSelectionChange={onSelectionChange}
+                onReconnect={onReconnect}
+                onNodeDoubleClick={onNodeDoubleClick}
                 nodeTypes={nodeTypes}
                 fitView
                 proOptions={{ hideAttribution: true }}
@@ -100,35 +110,26 @@ export default function FlowCanvas({ fileId }: { fileId: string }) {
                 <Background color="#333" gap={16} />
                 <Controls />
                 <MiniMap style={{ backgroundColor: '#1a1b1e' }} nodeColor="#4dabf7" />
-                <Panel position="top-left">
-                    <Stack gap="xs" p="xs" bg="rgba(0,0,0,0.7)" style={{ borderRadius: 8 }}>
-                        <Text size="xs" fw={700} c="dimmed">工具栏</Text>
+                <Panel position="bottom-center">
+                    <Group gap="xs" p="xs" bg="rgba(0,0,0,0.7)" style={{ borderRadius: 8 }}>
                         <Button size="xs" variant="filled" color="blue" leftSection={<IconPlus size={12} />} onClick={handleAddNode}>
                             添加节点
                         </Button>
-                        <Button size="xs" variant="light" color="green" leftSection={<IconDeviceFloppy size={12} />} onClick={handleSave}>
-                            保存更改
+                        <Button size="xs" variant="light" color="violet" leftSection={<IconLayoutDashboard size={12} />} onClick={handleAutoLayout}>
+                            智能重排
                         </Button>
-                        <Button size="xs" variant="subtle" color="gray" leftSection={<IconRefresh size={12} />} onClick={handleReload}>
-                            重置画布
-                        </Button>
-                    </Stack>
+                    </Group>
                 </Panel>
             </ReactFlow>
         </div>
         
-        {selectedNode && (
-            <Paper 
-                w={300} 
-                h="100%" 
-                style={{ borderLeft: '1px solid var(--mantine-color-dark-6)', zIndex: 10 }}
-                bg="var(--mantine-color-dark-8)"
-            >
-                <AgentProperties 
-                    node={selectedNode} 
-                    onChange={handleNodeUpdate} 
-                />
-            </Paper>
+        {editingNode && (
+            <ConversationNodeEditor
+                opened={!!editingNode}
+                onClose={() => setEditingNodeId(null)}
+                data={editingNode.data}
+                onUpdate={handleNodeUpdate}
+            />
         )}
     </Paper>
   );

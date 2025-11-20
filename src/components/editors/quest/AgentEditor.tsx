@@ -65,6 +65,23 @@ export const AGENT_TYPES = {
         tag: 'Task Completed',
         description: '条目完成之后。' 
     },
+
+    // Conversation Agents
+    begin: {
+        label: '对话开始前',
+        tag: 'Conversation Begin',
+        description: '对话开始前执行。可用于初始化变量或检查条件。'
+    },
+    end: {
+        label: '对话结束后',
+        tag: 'Conversation End',
+        description: '对话正常结束后执行。'
+    },
+    refuse: {
+        label: '对话被拒绝时',
+        tag: 'Conversation Refuse',
+        description: '当对话条件不满足或被拒绝时执行。'
+    }
 };
 
 interface AgentEditorProps {

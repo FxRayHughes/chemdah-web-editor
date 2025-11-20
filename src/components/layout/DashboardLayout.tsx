@@ -196,6 +196,25 @@ export default function DashboardLayout() {
     }
   };
 
+  const handleExportCurrent = () => {
+    if (!activeFile) return;
+    try {
+        const blob = new Blob([activeFile.content], { type: 'text/yaml;charset=utf-8' });
+        saveAs(blob, activeFile.name);
+        notifications.show({
+            title: '导出成功',
+            message: `文件 ${activeFile.name} 已导出`,
+            color: 'green'
+        });
+    } catch (error) {
+        notifications.show({
+            title: '导出失败',
+            message: '无法导出文件',
+            color: 'red'
+        });
+    }
+  };
+
   const handleImport = async (file: File | null) => {
     if (!file) return;
     
@@ -224,6 +243,32 @@ export default function DashboardLayout() {
             notifications.show({
                 title: '导入成功',
                 message: `成功导入 ${newFiles.length} 个文件`,
+                color: 'green'
+            });
+        } else if (file.name.endsWith('.yml') || file.name.endsWith('.yaml')) {
+            const content = await file.text();
+            const data = parseYaml(content);
+            let type: FileType = activeTab as FileType;
+
+            if (data && typeof data === 'object') {
+                const hasConversationFeatures = Object.values(data).some((node: any) => node && (node.npc || node.player));
+                const hasQuestFeatures = Object.values(data).some((node: any) => node && (node.meta || node.task));
+
+                if (hasConversationFeatures) type = 'conversation';
+                else if (hasQuestFeatures) type = 'quest';
+            }
+
+            importFiles([{
+                id: uuidv4(),
+                name: file.name,
+                type,
+                content,
+                path: ''
+            }]);
+
+            notifications.show({
+                title: '导入成功',
+                message: `成功导入文件 ${file.name} (${type === 'quest' ? '任务' : '对话'})`,
                 color: 'green'
             });
         }
@@ -277,10 +322,22 @@ export default function DashboardLayout() {
                 <FileButton onChange={handleImportApi} accept=".json">
                     {(props) => <Button {...props} variant="subtle" size="xs" leftSection={<IconSettings size={16} />}>API</Button>}
                 </FileButton>
-                <FileButton onChange={handleImport} accept=".zip">
+                <FileButton onChange={handleImport} accept=".zip,.yml,.yaml">
                     {(props) => <Button {...props} variant="subtle" size="xs" leftSection={<IconUpload size={16} />}>导入</Button>}
                 </FileButton>
-                <Button variant="subtle" size="xs" leftSection={<IconDownload size={16} />} onClick={handleExport}>导出</Button>
+                <Menu shadow="md" width={200}>
+                    <Menu.Target>
+                        <Button variant="subtle" size="xs" leftSection={<IconDownload size={16} />}>导出</Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                        <Menu.Item leftSection={<IconFileText size={14} />} onClick={handleExportCurrent} disabled={!activeFile}>
+                            导出当前文件
+                        </Menu.Item>
+                        <Menu.Item leftSection={<IconFolderPlus size={14} />} onClick={handleExport}>
+                            导出全部 (ZIP)
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
             </Group>
             </Group>
         </AppShell.Header>

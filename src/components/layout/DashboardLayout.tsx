@@ -17,7 +17,7 @@ export default function DashboardLayout() {
   const [activeTab, setActiveTab] = useState<string>('quest');
   const { 
     questFiles, questFolders, conversationFiles, conversationFolders, 
-    activeFileId, activeFileType, setActiveFile, 
+    activeFileId, setActiveFile, 
     createFile, deleteFile, renameFile, importFiles, moveFile, 
     createFolder, deleteFolder, renameFolder, moveFolder 
   } = useProjectStore();

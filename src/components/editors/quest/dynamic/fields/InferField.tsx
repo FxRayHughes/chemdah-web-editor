@@ -27,7 +27,7 @@ const OPERATORS = [
     { value: 'in', label: 'In' },
 ];
 
-export const InferField: React.FC<InferFieldProps> = ({ value, onChange, placeholder, label }) => {
+export const InferField: React.FC<InferFieldProps> = ({ value, onChange, placeholder }) => {
     const [mainValue, setMainValue] = useState('');
     const [properties, setProperties] = useState<Property[]>([]);
     const [opened, setOpened] = useState(false);

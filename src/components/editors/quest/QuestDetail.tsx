@@ -21,7 +21,7 @@ interface QuestDetailProps {
     onUpdate: (newData: any) => void;
 }
 
-export function QuestDetail({ taskId, taskData, onUpdate }: QuestDetailProps) {
+export function QuestDetail({ taskData, onUpdate }: QuestDetailProps) {
     const { apiData } = useApiStore();
 
     // Prepare options for Select with groups

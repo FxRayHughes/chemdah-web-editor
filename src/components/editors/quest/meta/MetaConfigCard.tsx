@@ -1,6 +1,6 @@
 import { Card, Group, Text, Badge, Stack, Collapse, ActionIcon, Box } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { MetaDefinition } from '../../../../store/useApiStore';
 import { DynamicMetaFields } from './DynamicMetaFields';
 
@@ -12,12 +12,17 @@ interface MetaConfigCardProps {
     onChange: (metaId: string, newData: any) => void;
 }
 
-export function MetaConfigCard({ metaId, definition, plugin, data, onChange }: MetaConfigCardProps) {
+export const MetaConfigCard = memo(function MetaConfigCard({ metaId, definition, plugin, data, onChange }: MetaConfigCardProps) {
     const [opened, setOpened] = useState(false);
 
-    const handleFieldChange = (newValue: any) => {
+    // 使用 _source 字段作为实际来源，如果没有则回退到 plugin 参数
+    const actualSource = definition._source || plugin;
+    // 使用 _sourceColor 字段作为颜色，如果没有则使用默认颜色
+    const sourceColor = definition._sourceColor || 'gray';
+
+    const handleFieldChange = useCallback((newValue: any) => {
         onChange(metaId, newValue);
-    };
+    }, [metaId, onChange]);
 
     return (
         <Card
@@ -36,11 +41,16 @@ export function MetaConfigCard({ metaId, definition, plugin, data, onChange }: M
                         <Text size="sm" fw={600} truncate>
                             {definition.name || metaId}
                         </Text>
-                        <Badge size="xs" variant="light" color="gray">
-                            {plugin}
+                        <Badge
+                            size="xs"
+                            variant="dot"
+                            color={sourceColor}
+                            style={{ textTransform: 'uppercase' }}
+                        >
+                            {actualSource}
                         </Badge>
                         {definition.alias && definition.alias.length > 0 && (
-                            <Badge size="xs" variant="light" color="blue">
+                            <Badge size="xs" variant="light" color="cyan">
                                 {definition.alias[0]}
                             </Badge>
                         )}
@@ -78,4 +88,4 @@ export function MetaConfigCard({ metaId, definition, plugin, data, onChange }: M
             </Collapse>
         </Card>
     );
-}
+});

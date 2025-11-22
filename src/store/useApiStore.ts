@@ -58,6 +58,8 @@ export interface MetaDefinition {
     description: string[];  // 描述数组
     alias: string[];        // 别名数组
     params: ParamDefinition[]; // 参数列表
+    _source?: string;       // 原始来源插件（内部使用）
+    _sourceColor?: string;  // 来源的颜色配置（内部使用）
 }
 
 // Addon 组件定义
@@ -69,6 +71,8 @@ export interface AddonDefinition {
     description: string[];  // 描述数组
     alias: string[];        // 别名数组
     params: ParamDefinition[]; // 参数列表
+    _source?: string;       // 原始来源插件（内部使用）
+    _sourceColor?: string;  // 来源的颜色配置（内部使用）
 }
 
 // 插件 API 定义
@@ -309,9 +313,6 @@ export const useApiStore = create<ApiState>()(
                 if (apiCenterData) {
                     set({ apiData: apiCenterData });
                     get().buildSearchIndex();
-                    console.log('✅ API 数据已从 API Center 加载');
-                } else {
-                    console.warn('⚠️ API Center 无可用数据');
                 }
             },
 
@@ -327,7 +328,6 @@ export const useApiStore = create<ApiState>()(
                 if (apiCenterData) {
                     set({ apiData: apiCenterData });
                     get().buildSearchIndex();
-                    console.log('🔄 API 数据已同步');
                 }
             },
 
@@ -402,8 +402,6 @@ export const useApiStore = create<ApiState>()(
                 set({
                     searchIndex: { objectives, metas, addons }
                 });
-
-                console.log(`🔍 搜索索引已构建: ${objectives.length} objectives, ${metas.length} metas, ${addons.length} addons`);
             },
 
             // 搜索 Objectives
@@ -435,7 +433,7 @@ export const useApiStore = create<ApiState>()(
             },
 
             // 记录使用
-            recordUsage: (plugin: string, id: string, type: SearchItemType) => {
+            recordUsage: (plugin: string, id: string) => {
                 const key = `${plugin}:${id}`;
                 set((state) => ({
                     usageFrequency: {
@@ -443,7 +441,6 @@ export const useApiStore = create<ApiState>()(
                         [key]: (state.usageFrequency[key] || 0) + 1
                     }
                 }));
-                console.log(`📊 记录使用: ${type} ${key}`);
             },
 
             // 获取使用频率

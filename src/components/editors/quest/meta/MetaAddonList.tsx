@@ -1,6 +1,6 @@
 import { Stack, TextInput, Text, Box, Divider, Group } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useApiStore } from '../../../../store/useApiStore';
 import { MetaConfigCard } from './MetaConfigCard';
 import { AddonConfigCard } from './AddonConfigCard';
@@ -22,7 +22,7 @@ export function MetaAddonList({ type, scope, data, onChange, excludeIds = [] }: 
         const results = type === 'meta' ? searchMetas(searchQuery) : searchAddons(searchQuery);
 
         // 过滤出符合 scope 的结果，并排除指定的 ID
-        return results.filter(item => {
+        const filtered = results.filter(item => {
             // 排除指定的 ID
             if (excludeIds.includes(item.id)) {
                 return false;
@@ -32,14 +32,28 @@ export function MetaAddonList({ type, scope, data, onChange, excludeIds = [] }: 
                 ? getMeta(item.plugin, item.id)
                 : getAddon(item.plugin, item.id);
 
-            if (!definition) return false;
+            if (!definition) {
+                return false;
+            }
 
-            // scope 为 both 表示同时支持 quest 和 task
-            return definition.scope === 'both' || definition.scope === scope;
+            // 规范化 scope 值
+            // quest_only -> quest, task_only -> task, both -> both
+            const normalizedDefScope = definition.scope === 'quest_only' ? 'quest'
+                : definition.scope === 'task_only' ? 'task'
+                : definition.scope;
+
+            const normalizedRequiredScope = scope;
+
+            // 判断是否匹配
+            const matches = normalizedDefScope === 'both' || normalizedDefScope === normalizedRequiredScope;
+
+            return matches;
         });
+
+        return filtered;
     }, [searchQuery, type, scope, searchMetas, searchAddons, getMeta, getAddon, excludeIds]);
 
-    const handleItemChange = (itemId: string, newValue: any) => {
+    const handleItemChange = useCallback((itemId: string, newValue: any) => {
         const newData = { ...data };
 
         if (newValue === undefined || newValue === null || newValue === '' ||
@@ -50,7 +64,7 @@ export function MetaAddonList({ type, scope, data, onChange, excludeIds = [] }: 
         }
 
         onChange(newData);
-    };
+    }, [data, onChange]);
 
     const typeName = type === 'meta' ? '元数据' : '扩展';
     const scopeName = scope === 'quest' ? '任务' : '条目';

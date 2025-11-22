@@ -15,8 +15,6 @@ export default function App() {
 
     // 初始化默认 API 源（如果还没有）
     if (sources.length === 0) {
-      console.log('📝 初始化默认 API 源...');
-
       // 添加默认 API 源（从 public 文件夹）
       addSource({
         name: 'Chemdah Core',

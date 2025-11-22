@@ -13,7 +13,25 @@ export interface ApiSource {
   error?: string;
   data?: any; // Loaded API data
   isLocal?: boolean; // True if uploaded from file
+  color?: string; // Badge color for this source
 }
+
+// 预定义颜色池
+const COLOR_POOL = [
+  'blue', 'green', 'red', 'yellow', 'orange', 'violet', 'grape',
+  'pink', 'cyan', 'teal', 'lime', 'indigo'
+];
+
+// 根据已使用的颜色，分配一个新颜色
+const assignColor = (existingSources: ApiSource[]): string => {
+  const usedColors = existingSources.map(s => s.color).filter(Boolean);
+  const availableColors = COLOR_POOL.filter(c => !usedColors.includes(c));
+  if (availableColors.length > 0) {
+    return availableColors[0];
+  }
+  // 如果颜色用完了，循环使用
+  return COLOR_POOL[existingSources.length % COLOR_POOL.length];
+};
 
 interface ApiCenterState {
   sources: ApiSource[];
@@ -43,7 +61,6 @@ export const useApiCenterStore = create<ApiCenterState>()(
         );
 
         if (exists) {
-          console.log('⚠️ API 源已存在，跳过添加:', source.name);
           return;
         }
 
@@ -52,10 +69,10 @@ export const useApiCenterStore = create<ApiCenterState>()(
           ...source,
           id: `api_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // 添加随机数避免冲突
           order: maxOrder + 1,
-          status: 'idle'
+          status: 'idle',
+          color: source.color || assignColor(sources) // 自动分配颜色
         };
         set({ sources: [...sources, newSource] });
-        console.log('✅ 已添加 API 源:', source.name);
       },
 
       addLocalSource: (name, data) => {
@@ -65,7 +82,6 @@ export const useApiCenterStore = create<ApiCenterState>()(
         const exists = sources.some(s => s.name === name);
 
         if (exists) {
-          console.log('⚠️ API 源已存在，跳过添加:', name);
           return;
         }
 
@@ -78,10 +94,10 @@ export const useApiCenterStore = create<ApiCenterState>()(
           status: 'success',
           data,
           isLocal: true,
-          lastLoaded: new Date().toISOString()
+          lastLoaded: new Date().toISOString(),
+          color: assignColor(sources) // 自动分配颜色
         };
         set({ sources: [...sources, newSource] });
-        console.log('✅ 已添加本地 API 源:', name);
       },
 
       removeSource: (id) => {
@@ -120,19 +136,16 @@ export const useApiCenterStore = create<ApiCenterState>()(
 
         // Skip loading for local sources (already have data)
         if (source.isLocal) {
-          console.log('⏭️ 跳过本地源加载:', source.name);
           return;
         }
 
         // 防止重复加载：如果正在加载，跳过
         if (source.status === 'loading') {
-          console.log('⏭️ 源正在加载中，跳过:', source.name);
           return;
         }
 
         // 只有在非强制重载的情况下才检查是否已加载
         if (!forceReload && source.status === 'success' && source.data) {
-          console.log('⏭️ 源已加载，跳过:', source.name);
           return;
         }
 
@@ -168,14 +181,11 @@ export const useApiCenterStore = create<ApiCenterState>()(
             lastLoaded: new Date().toISOString(),
             error: undefined
           });
-
-          console.log(`✅ API 源${forceReload ? '重新' : ''}加载成功: ${source.name}`);
         } catch (error: any) {
           get().updateSource(id, {
             status: 'error',
             error: error.message || 'Failed to load API'
           });
-          console.error(`❌ API 源加载失败: ${source.name}`, error);
         }
       },
 
@@ -191,16 +201,31 @@ export const useApiCenterStore = create<ApiCenterState>()(
           .filter(s => s.enabled && s.status === 'success' && s.data)
           .sort((a, b) => a.order - b.order);
 
-        if (sources.length === 0) {
-          console.warn('⚠️ 没有可用的 API 源');
+        // 为没有颜色的源分配颜色（迁移旧数据）
+        let needsUpdate = false;
+        sources.forEach((source, index) => {
+          if (!source.color) {
+            needsUpdate = true;
+            const assignedColor = COLOR_POOL[index % COLOR_POOL.length];
+            get().updateSource(source.id, { color: assignedColor });
+          }
+        });
+
+        // 如果有更新，重新获取源列表
+        const finalSources = needsUpdate
+          ? get().sources.filter(s => s.enabled && s.status === 'success' && s.data).sort((a, b) => a.order - b.order)
+          : sources;
+
+        if (finalSources.length === 0) {
           return null;
         }
 
         // 合并所有 API 数据（新格式）
         const merged: ApiData = {};
 
-        sources.forEach(source => {
+        finalSources.forEach(source => {
           const data = source.data;
+          const sourceColor = source.color || 'gray'; // 获取源的颜色配置
 
           // 遍历每个插件
           for (const [pluginName, pluginData] of Object.entries(data)) {
@@ -222,26 +247,80 @@ export const useApiCenterStore = create<ApiCenterState>()(
               };
             }
 
-            // 合并 metas
-            if (pluginApi.meta) {
-              if (!merged[pluginName].meta) {
-                merged[pluginName].meta = {};
+            // 合并 metas（支持所有格式）
+            // meta = 通用（both）
+            // quest_meta = Quest 专用（quest_only 或 quest）
+            // task_meta = Task 专用（task_only 或 task）
+            // questmeta = Quest 专用（兼容无下划线格式）
+            // taskmeta = Task 专用（兼容无下划线格式）
+            const metaSources = [
+              { data: pluginApi.meta, type: 'meta' },
+              { data: pluginApi.quest_meta, type: 'quest_meta' },
+              { data: pluginApi.task_meta, type: 'task_meta' },
+              { data: pluginApi.questmeta, type: 'questmeta' },
+              { data: pluginApi.taskmeta, type: 'taskmeta' }
+            ];
+
+            for (const { data: metaData } of metaSources) {
+              if (metaData) {
+                if (!merged[pluginName].meta) {
+                  merged[pluginName].meta = {};
+                }
+
+                // 为每个 meta 添加 _source 和 _sourceColor 字段标记来源
+                const metaDataWithSource: Record<string, any> = {};
+                for (const [key, value] of Object.entries(metaData)) {
+                  metaDataWithSource[key] = {
+                    ...(value as Record<string, any>),
+                    _source: pluginName,      // 记录原始插件来源
+                    _sourceColor: sourceColor // 记录源的颜色配置
+                  };
+                }
+
+                // 合并时保持原始定义，不修改 scope
+                merged[pluginName].meta = {
+                  ...merged[pluginName].meta,
+                  ...metaDataWithSource
+                };
               }
-              merged[pluginName].meta = {
-                ...merged[pluginName].meta,
-                ...pluginApi.meta
-              };
             }
 
-            // 合并 addons
-            if (pluginApi.addon) {
-              if (!merged[pluginName].addon) {
-                merged[pluginName].addon = {};
+            // 合并 addons（支持所有格式）
+            // addon = 通用（both）
+            // quest_addon = Quest 专用（quest_only 或 quest）
+            // task_addon = Task 专用（task_only 或 task）
+            // questaddon = Quest 专用（兼容无下划线格式）
+            // taskaddon = Task 专用（兼容无下划线格式）
+            const addonSources = [
+              { data: pluginApi.addon, type: 'addon' },
+              { data: pluginApi.quest_addon, type: 'quest_addon' },
+              { data: pluginApi.task_addon, type: 'task_addon' },
+              { data: pluginApi.questaddon, type: 'questaddon' },
+              { data: pluginApi.taskaddon, type: 'taskaddon' }
+            ];
+
+            for (const { data: addonData } of addonSources) {
+              if (addonData) {
+                if (!merged[pluginName].addon) {
+                  merged[pluginName].addon = {};
+                }
+
+                // 为每个 addon 添加 _source 和 _sourceColor 字段标记来源
+                const addonDataWithSource: Record<string, any> = {};
+                for (const [key, value] of Object.entries(addonData)) {
+                  addonDataWithSource[key] = {
+                    ...(value as Record<string, any>),
+                    _source: pluginName,      // 记录原始插件来源
+                    _sourceColor: sourceColor // 记录源的颜色配置
+                  };
+                }
+
+                // 合并时保持原始定义，不修改 scope
+                merged[pluginName].addon = {
+                  ...merged[pluginName].addon,
+                  ...addonDataWithSource
+                };
               }
-              merged[pluginName].addon = {
-                ...merged[pluginName].addon,
-                ...pluginApi.addon
-              };
             }
           }
         });
@@ -249,12 +328,16 @@ export const useApiCenterStore = create<ApiCenterState>()(
         // 统计信息
         let objCount = 0, metaCount = 0, addonCount = 0;
         for (const plugin of Object.values(merged)) {
-          if (plugin.objective) objCount += Object.keys(plugin.objective).length;
-          if (plugin.meta) metaCount += Object.keys(plugin.meta).length;
-          if (plugin.addon) addonCount += Object.keys(plugin.addon).length;
+          if (plugin.objective) {
+            objCount += Object.keys(plugin.objective).length;
+          }
+          if (plugin.meta) {
+            metaCount += Object.keys(plugin.meta).length;
+          }
+          if (plugin.addon) {
+            addonCount += Object.keys(plugin.addon).length;
+          }
         }
-
-        console.log(`📦 API 数据已合并: ${objCount} objectives, ${metaCount} metas, ${addonCount} addons`);
 
         return merged;
       }

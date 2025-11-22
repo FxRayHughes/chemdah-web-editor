@@ -1,29 +1,72 @@
-import { Stack, Checkbox } from '@mantine/core';
+import { Stack, TextInput, NumberInput, Checkbox, Textarea } from '@mantine/core';
 import { ParamDefinition } from '../../../../store/useApiStore';
 import { FormScript } from '../../../ui';
-import { DynamicMapList } from './DynamicMapList';
-import { memo, useCallback } from 'react';
-import { DebouncedTextInput, DebouncedNumberInput, DebouncedTextarea } from '../../../ui/DebouncedInput';
 
-interface DynamicMetaFieldsProps {
-    params: ParamDefinition[];
-    optionType: string;
+interface DynamicMapItemProps {
+    fields: ParamDefinition[];
     value: any;
     onChange: (value: any) => void;
+    rootParamName: string; // 例如 "briefing[]" 或 "control[]"
 }
 
-export const DynamicMetaFields = memo(function DynamicMetaFields({ params, optionType, value, onChange }: DynamicMetaFieldsProps) {
-    const handleChange = useCallback((paramName: string, newValue: any) => {
+/**
+ * 渲染单个 Map 对象的所有字段
+ *
+ * 处理嵌套字段（使用点号分隔）
+ */
+export function DynamicMapItem({ fields, value, onChange, rootParamName }: DynamicMapItemProps) {
+    const handleChange = (fieldName: string, newValue: any) => {
         const updatedValue = { ...value };
 
-        if (newValue === undefined || newValue === '' || newValue === null) {
-            delete updatedValue[paramName];
+        // 移除前缀 "root[]."
+        const prefix = rootParamName.replace('[]', '') + '[].';
+        const cleanFieldName = fieldName.startsWith(prefix) ? fieldName.substring(prefix.length) : fieldName;
+
+        // 处理嵌套字段（用点号分隔）
+        const parts = cleanFieldName.split('.');
+        if (parts.length === 1) {
+            // 简单字段
+            if (newValue === undefined || newValue === '' || newValue === null) {
+                delete updatedValue[cleanFieldName];
+            } else {
+                updatedValue[cleanFieldName] = newValue;
+            }
         } else {
-            updatedValue[paramName] = newValue;
+            // 嵌套字段
+            let current = updatedValue;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) {
+                    current[parts[i]] = {};
+                }
+                current = current[parts[i]];
+            }
+
+            const lastPart = parts[parts.length - 1];
+            if (newValue === undefined || newValue === '' || newValue === null) {
+                delete current[lastPart];
+            } else {
+                current[lastPart] = newValue;
+            }
         }
 
         onChange(updatedValue);
-    }, [value, onChange]);
+    };
+
+    // 获取字段值（支持嵌套）
+    const getFieldValue = (fieldName: string): any => {
+        const prefix = rootParamName.replace('[]', '') + '[].';
+        const cleanFieldName = fieldName.startsWith(prefix) ? fieldName.substring(prefix.length) : fieldName;
+
+        const parts = cleanFieldName.split('.');
+        let current = value;
+        for (const part of parts) {
+            if (current === undefined || current === null) {
+                return undefined;
+            }
+            current = current[part];
+        }
+        return current;
+    };
 
     // 检查是否是 Kether 脚本类型
     const isKetherScript = (param: ParamDefinition) => {
@@ -32,56 +75,10 @@ export const DynamicMetaFields = memo(function DynamicMetaFields({ params, optio
         );
     };
 
-    // 如果是 MAP_LIST 类型，使用专门的列表编辑器
-    if (optionType === 'MAP_LIST') {
-        // 找到根参数名（带 []）
-        const rootParam = params.find(p => p.name.endsWith('[]'));
-
-        if (rootParam) {
-            return (
-                <DynamicMapList
-                    params={params}
-                    value={value || []}
-                    onChange={onChange}
-                    rootParamName={rootParam.name}
-                />
-            );
-        }
-    }
-
-    // 如果是 TEXT 类型且只有一个参数，直接返回文本值而不是对象
-    if (optionType === 'TEXT' && params.length === 1) {
-        const param = params[0];
-
-        // 检查是否是脚本类型
-        if (isKetherScript(param)) {
-            return (
-                <FormScript
-                    key={param.name}
-                    label={param.description || param.name}
-                    value={value || ''}
-                    onChange={onChange}
-                />
-            );
-        }
-
-        return (
-            <DebouncedTextInput
-                key={param.name}
-                label={param.description || param.name}
-                placeholder={`输入${param.description || param.name}`}
-                value={value || ''}
-                onChange={onChange}
-                debounceMs={300}
-            />
-        );
-    }
-
-    // SECTION 或 ANY 类型，显示所有参数
     return (
         <Stack gap="md">
-            {params.map((param) => {
-                const fieldValue = value?.[param.name];
+            {fields.map((param) => {
+                const fieldValue = getFieldValue(param.name);
 
                 // 检查是否是脚本类型
                 if (isKetherScript(param)) {
@@ -108,42 +105,43 @@ export const DynamicMetaFields = memo(function DynamicMetaFields({ params, optio
 
                     case 'number':
                         return (
-                            <DebouncedNumberInput
+                            <NumberInput
                                 key={param.name}
                                 label={param.description || param.name}
                                 placeholder={`输入${param.description || param.name}`}
                                 value={fieldValue}
                                 onChange={(val) => handleChange(param.name, val)}
-                                debounceMs={300}
                             />
                         );
 
                     case 'section':
                         return (
-                            <DebouncedTextarea
+                            <Textarea
                                 key={param.name}
                                 label={param.description || param.name}
                                 placeholder={`输入${param.description || param.name}`}
                                 value={fieldValue || ''}
-                                onChange={(val) => handleChange(param.name, val)}
+                                onChange={(e) => handleChange(param.name, e.target.value)}
                                 minRows={3}
-                                debounceMs={300}
                             />
                         );
 
+                    case 'map':
+                        // 跳过 map 类型的根节点（它只是描述，不需要输入框）
+                        return null;
+
                     default:
                         return (
-                            <DebouncedTextInput
+                            <TextInput
                                 key={param.name}
                                 label={param.description || param.name}
                                 placeholder={`输入${param.description || param.name}`}
                                 value={fieldValue || ''}
-                                onChange={(val) => handleChange(param.name, val)}
-                                debounceMs={300}
+                                onChange={(e) => handleChange(param.name, e.target.value)}
                             />
                         );
                 }
             })}
         </Stack>
     );
-});
+}

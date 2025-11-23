@@ -45,7 +45,7 @@ export function FormScript({ label, description, height = "200px", value, onChan
                     onChangeRef.current(newValue);
                 }
                 debounceTimer = null;
-            }, 300); // 300ms 防抖
+            }, 800); // 800ms 防抖
         });
     }, []);
 

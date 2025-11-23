@@ -12,7 +12,6 @@ interface SaveTask {
 class SaveQueue {
     private queue: Map<string, SaveTask> = new Map();
     private processing = false;
-    private worker: Worker | null = null;
 
     constructor() {
         // 使用 requestIdleCallback 在浏览器空闲时处理保存
@@ -36,7 +35,7 @@ class SaveQueue {
 
         // 触发处理
         if (!this.processing) {
-            this.process();
+            this.processQueue();
         }
     }
 

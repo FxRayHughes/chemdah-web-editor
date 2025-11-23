@@ -1,12 +1,12 @@
 import { Modal, Tabs, Stack, Button, ActionIcon, Text, Box, ScrollArea, Title, Group, Accordion, Badge, ThemeIcon, Select } from '@mantine/core';
 import { IconMessage, IconUser, IconScript, IconSettings, IconPlus, IconTrash, IconGitBranch, IconPuzzle } from '@tabler/icons-react';
-import { FormSection, FormInput, FormTextarea, AnimatedTabs, FormScript } from '../../ui';
-import { AgentEditor } from '../quest/AgentEditor';
+import { FormSection, FormInput, FormTextarea, AnimatedTabs, FormScript } from '@/components/ui';
+import { AgentEditor } from '@/components/editors/quest/AgentEditor';
 import { AgentNodeData } from './nodes/AgentNode';
 import { SwitchNodeData } from './nodes/SwitchNode';
 import { useGlobalIdCheck } from './useGlobalIdCheck';
 import { useApiStore } from '@/store/useApiStore';
-import { DynamicComponentField } from '../quest/dynamic/DynamicComponentField';
+import { DynamicComponentField } from '@/components/editors/quest/dynamic/DynamicComponentField';
 
 interface ConversationNodeEditorProps {
     opened: boolean;

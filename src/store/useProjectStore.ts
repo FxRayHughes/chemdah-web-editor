@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { saveQueue } from '../utils/saveQueue';
+import { saveQueue } from '@/utils/saveQueue';
 
 /**
  * 文件类型

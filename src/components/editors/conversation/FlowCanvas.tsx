@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge, Connection, Edge, Panel, Node, reconnectEdge, SelectionMode } from 'reactflow';
 import { Paper, Button, Group, Tooltip, ActionIcon } from '@mantine/core';
-import { useProjectStore } from '../../../store/useProjectStore';
+import { useProjectStore } from '@/store/useProjectStore';
 import { IconPlus, IconLayoutDashboard, IconGitBranch, IconHandMove, IconBoxMultiple, IconTrash } from '@tabler/icons-react';
 import AgentNode, { AgentNodeData } from './nodes/AgentNode';
 import SwitchNode, { SwitchNodeData } from './nodes/SwitchNode';

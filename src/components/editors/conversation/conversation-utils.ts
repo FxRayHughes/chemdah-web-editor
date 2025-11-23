@@ -1,5 +1,5 @@
 import { Edge, Node } from 'reactflow';
-import { parseYaml, toYaml } from '../../../utils/yaml-utils';
+import { parseYaml, toYaml } from '@/utils/yaml-utils';
 import { AgentNodeData } from './nodes/AgentNode';
 import { SwitchNodeData } from './nodes/SwitchNode';
 

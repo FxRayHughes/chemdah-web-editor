@@ -1,6 +1,6 @@
 import Editor, { EditorProps, OnMount } from '@monaco-editor/react';
 import { Box, Text, Group, Badge, Loader, Center } from '@mantine/core';
-import { useThemeStore } from '../../store/useThemeStore';
+import { useThemeStore } from '@/store/useThemeStore';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
 interface FormScriptProps extends EditorProps {

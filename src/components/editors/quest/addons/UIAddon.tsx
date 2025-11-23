@@ -1,5 +1,5 @@
 import { FormAddon, FormCheckbox } from '@/components/ui';
-import { IconInput } from '../components/IconInput';
+import { IconInput } from '@/components/editors/quest/components/IconInput';
 import { DebouncedTextarea } from '@/components/ui/DebouncedInput';
 
 interface UIAddonProps {

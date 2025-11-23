@@ -22,13 +22,25 @@ export function ConversationNodeEditor({ opened, onClose, data, type = 'agent', 
     const { checkDuplicate } = useGlobalIdCheck(fileId);
     const { apiData } = useApiStore();
 
-    // Collect all conversationNodeComponents and conversationPlayerOptionComponents from all plugins
-    const conversationNodeComponents = Object.values(apiData).flatMap(
-        plugin => plugin.conversationNodeComponents || []
-    );
-    const conversationPlayerOptionComponents = Object.values(apiData).flatMap(
-        plugin => plugin.conversationPlayerOptionComponents || []
-    );
+    // 从所有插件的 conversation 中筛选出 node 和 player-option 组件
+    const conversationNodeComponents: Array<{ id: string; component: any }> = [];
+    const conversationPlayerOptionComponents: Array<{ id: string; component: any }> = [];
+
+    Object.entries(apiData).forEach(([_, plugin]) => {
+        if (plugin.conversation) {
+            Object.entries(plugin.conversation).forEach(([compId, compDef]) => {
+                const componentWithId = { id: compId, component: compDef };
+
+                if (compDef.scope === 'node' || compDef.scope === 'both') {
+                    conversationNodeComponents.push(componentWithId);
+                }
+
+                if (compDef.scope === 'player-option' || compDef.scope === 'both') {
+                    conversationPlayerOptionComponents.push(componentWithId);
+                }
+            });
+        }
+    });
 
     const globalDuplicates = checkDuplicate(data.label);
     const isDuplicateInCurrentFile = existingIds.includes(data.label);
@@ -197,18 +209,23 @@ export function ConversationNodeEditor({ opened, onClose, data, type = 'agent', 
                                                     onChange={(val) => handleOptionChange(idx, 'actions', val || '')}
                                                 />
 
-                                                {/* 渲染玩家选项自定义组件 - 直接显示字段 */}
-                                                {conversationPlayerOptionComponents.map(component => (
-                                                    <Box key={component.id}>
+                                                {/* 渲染玩家选项自定义组件 - 使用新的 params 格式 */}
+                                                {conversationPlayerOptionComponents.map(({ id: compId, component: compDef }) => (
+                                                    <Box key={compId}>
                                                         <Text size="sm" fw={500} mb="xs" c="dimmed">
-                                                            {component.name} ({component.id})
+                                                            {compDef.name} ({compId})
                                                         </Text>
-                                                        {component.fields.map((field) => (
+                                                        {compDef.params.map((param: any) => (
                                                             <DynamicComponentField
-                                                                key={field.name}
-                                                                field={field}
+                                                                key={param.name}
+                                                                field={{
+                                                                    name: param.name,
+                                                                    label: param.name,
+                                                                    pattern: param.type,
+                                                                    description: param.description
+                                                                }}
                                                                 value={(() => {
-                                                                    const keys = field.name.split('.');
+                                                                    const keys = param.name.split('.');
                                                                     let value = opt;
                                                                     for (const key of keys) {
                                                                         if (value === undefined || value === null) return undefined;
@@ -217,7 +234,7 @@ export function ConversationNodeEditor({ opened, onClose, data, type = 'agent', 
                                                                     return value;
                                                                 })()}
                                                                 onChange={(value) => {
-                                                                    const keys = field.name.split('.');
+                                                                    const keys = param.name.split('.');
                                                                     const newOption = { ...opt };
                                                                     let current: any = newOption;
                                                                     for (let i = 0; i < keys.length - 1; i++) {
@@ -270,17 +287,22 @@ export function ConversationNodeEditor({ opened, onClose, data, type = 'agent', 
                         <Stack gap="md">
                             <Title order={4}>自定义节点组件</Title>
                             {conversationNodeComponents.length > 0 ? (
-                                conversationNodeComponents.map(component => (
-                                    <FormSection key={component.id}>
-                                        <Title order={5} mb="xs">{component.name} ({component.id})</Title>
-                                        <Text size="xs" c="dimmed" mb="sm">{component.category}</Text>
+                                conversationNodeComponents.map(({ id: compId, component: compDef }) => (
+                                    <FormSection key={compId}>
+                                        <Title order={5} mb="xs">{compDef.name} ({compId})</Title>
+                                        <Text size="xs" c="dimmed" mb="sm">{compDef.description?.join(' / ')}</Text>
                                         <Stack gap="sm">
-                                            {component.fields.map((field) => (
+                                            {compDef.params.map((param: any) => (
                                                 <DynamicComponentField
-                                                    key={field.name}
-                                                    field={field}
+                                                    key={param.name}
+                                                    field={{
+                                                        name: param.name,
+                                                        label: param.name,
+                                                        pattern: param.type,
+                                                        description: param.description
+                                                    }}
                                                     value={(() => {
-                                                        const keys = field.name.split('.');
+                                                        const keys = param.name.split('.');
                                                         let value = data;
                                                         for (const key of keys) {
                                                             if (value === undefined || value === null) return undefined;
@@ -289,7 +311,7 @@ export function ConversationNodeEditor({ opened, onClose, data, type = 'agent', 
                                                         return value;
                                                     })()}
                                                     onChange={(value) => {
-                                                        const keys = field.name.split('.');
+                                                        const keys = param.name.split('.');
                                                         const newData = { ...data };
                                                         let current: any = newData;
                                                         for (let i = 0; i < keys.length - 1; i++) {

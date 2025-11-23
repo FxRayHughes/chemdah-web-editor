@@ -75,6 +75,20 @@ export interface AddonDefinition {
     _sourceColor?: string;  // 来源的颜色配置（内部使用）
 }
 
+// ==================== 对话组件定义 ====================
+
+// 对话组件定义（与 Meta/Addon 对齐）
+export interface ConversationComponentDefinition {
+    name: string;              // 中文名称
+    description: string[];     // 描述数组
+    alias: string[];           // 别名数组
+    scope: 'node' | 'player-option' | 'both';  // 作用域
+    class?: string;            // 可选的类名
+    params: ParamDefinition[]; // 参数列表
+    _source?: string;          // 来源插件
+    _sourceColor?: string;     // 来源颜色
+}
+
 // 插件 API 定义
 export interface PluginApiDefinition {
     objective?: {
@@ -86,8 +100,10 @@ export interface PluginApiDefinition {
     addon?: {
         [addonId: string]: AddonDefinition;
     };
-    conversationNodeComponents?: ComponentDefinition[];
-    conversationPlayerOptionComponents?: ComponentDefinition[];
+    // 对话系统 - 使用统一的对象格式
+    conversation?: {
+        [componentId: string]: ConversationComponentDefinition;
+    };
 }
 
 // 完整 API 数据（按插件分组）

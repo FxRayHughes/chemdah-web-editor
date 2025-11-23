@@ -1,5 +1,5 @@
 import { Handle, Position, NodeProps } from 'reactflow';
-import { Card, Text, Stack, Box, ThemeIcon, Group, Badge } from '@mantine/core';
+import { Card, Text, Stack, Box, ThemeIcon, Group, Badge, useMantineColorScheme } from '@mantine/core';
 import { IconMessage, IconMapPin } from '@tabler/icons-react';
 
 export type AgentNodeData = {
@@ -23,6 +23,7 @@ export type AgentNodeData = {
 
 export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) {
   const isEntry = !!data.npcId;
+  const { colorScheme } = useMantineColorScheme();
 
   return (
     <Card
@@ -33,11 +34,19 @@ export default function AgentNode({ data, selected }: NodeProps<AgentNodeData>) 
       className="conversation-node-card"
       style={{
         width: 280,
-        borderColor: selected ? 'var(--mantine-color-blue-5)' : (isEntry ? 'var(--mantine-color-orange-6)' : 'var(--mantine-color-dark-4)'),
-        borderWidth: 2,
+        borderColor: selected
+          ? 'var(--mantine-color-blue-5)'
+          : (isEntry ? 'var(--mantine-color-orange-6)' : (colorScheme === 'dark' ? 'var(--mantine-color-dark-4)' : 'var(--mantine-color-gray-4)')),
+        borderWidth: selected ? 3 : 2,
         overflow: 'visible',
-        backgroundColor: 'var(--mantine-color-dark-7)',
-        transition: 'all 0.2s ease'
+        backgroundColor: colorScheme === 'dark' ? 'var(--mantine-color-dark-7)' : '#ffffff',
+        transition: 'all 0.2s ease',
+        transform: selected ? 'scale(1.05)' : 'scale(1)',
+        boxShadow: selected
+          ? (colorScheme === 'dark'
+              ? '0 0 0 3px rgba(74, 144, 226, 0.3), 0 8px 24px rgba(0, 0, 0, 0.6)'
+              : '0 0 0 3px rgba(74, 144, 226, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25)')
+          : undefined
       }}
     >
       {/* Input Handle - Placed at the header level to indicate entry point */}

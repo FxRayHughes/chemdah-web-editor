@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Handle, Position, NodeProps, useUpdateNodeInternals } from 'reactflow';
-import { Card, Text, Stack, Box, ThemeIcon, Group, Badge, Tooltip } from '@mantine/core';
+import { Card, Text, Stack, Box, ThemeIcon, Group, Badge, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { IconGitBranch, IconAlertCircle } from '@tabler/icons-react';
 
 export type SwitchNodeData = {
@@ -17,6 +17,7 @@ export type SwitchNodeData = {
 export default function SwitchNode({ id, data, selected }: NodeProps<SwitchNodeData>) {
   const hasNpcId = !!data.npcId;
   const updateNodeInternals = useUpdateNodeInternals();
+  const { colorScheme } = useMantineColorScheme();
 
   useEffect(() => {
     updateNodeInternals(id);
@@ -31,11 +32,19 @@ export default function SwitchNode({ id, data, selected }: NodeProps<SwitchNodeD
       className="conversation-node-card"
       style={{
         width: 280,
-        borderColor: selected ? 'var(--mantine-color-violet-3)' : 'var(--mantine-color-violet-8)',
-        borderWidth: 2,
+        borderColor: selected
+          ? 'var(--mantine-color-blue-5)'
+          : (colorScheme === 'dark' ? 'var(--mantine-color-violet-8)' : 'var(--mantine-color-violet-3)'),
+        borderWidth: selected ? 3 : 2,
         overflow: 'visible',
-        backgroundColor: 'var(--mantine-color-dark-7)',
-        transition: 'all 0.2s ease'
+        backgroundColor: colorScheme === 'dark' ? 'var(--mantine-color-dark-7)' : '#ffffff',
+        transition: 'all 0.2s ease',
+        transform: selected ? 'scale(1.05)' : 'scale(1)',
+        boxShadow: selected
+          ? (colorScheme === 'dark'
+              ? '0 0 0 3px rgba(74, 144, 226, 0.3), 0 8px 24px rgba(0, 0, 0, 0.6)'
+              : '0 0 0 3px rgba(74, 144, 226, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25)')
+          : undefined
       }}
     >
       {/* Input Handle - Switch is always an entry point conceptually, but can be linked to?
